@@ -44,6 +44,14 @@ sceneZ = -worldX - 9487   (+Z south)
 origin = the road junction
 ```
 
+## `board.html` — the alignment, pair by pair
+
+Open it from the dev server (`npm run dev`, then `/refs/board.html`) or straight
+off disk. Every reference image sits beside the frame this build renders of the
+same thing, with a note on what the pair settles and, where the build knowingly
+departs from the reference, why. It also carries the verification table: what
+was checked, with which instrument, and what came back.
+
 ## `before/`, `after/`
 
 Screenshots of every `?cam=` preset, captured by `node tools/shoot.mjs`.
@@ -55,6 +63,22 @@ a one-line question:
 node tools/shoot.mjs --out refs/after
 node tools/shoot.mjs --compare refs/before refs/after
 ```
+
+`after/time/` is the same view at 00, 05, 08, 13, 18 and 21 hours;
+`after/verify/` holds the `?wire=1` and `?collider=1` shots.
+
+## The instruments
+
+```
+node tools/shoot.mjs      # deterministic screenshots of every preset
+node tools/lint-layout.mjs    # pad, road, fence, water and prop invariants
+node tools/lint-collider.mjs  # drop test over every walkable surface
+node tools/perf.mjs           # frame time with real draw and triangle counts
+```
+
+`lint-collider` exists because `?collider=1` cannot answer the question it looks
+like it answers: the BVH helper is depth-tested, so from inside a sealed room it
+draws nothing at all.
 
 ## Three numbers in the source data that are traps
 

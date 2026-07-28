@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Goldshire: reference against build</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f4f2ed;
+    --panel: #ffffff;
+    --ink: #1b1d21;
+    --dim: #5c6169;
+    --line: #d9d5cc;
+    --accent: #8a5a1e;
+    --warn: #8a2318;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171b;
+      --panel: #1c2026;
+      --ink: #e7e4dd;
+      --dim: #9aa1ab;
+      --line: #2c323a;
+      --accent: #d8a75a;
+      --warn: #e0836f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 0 0 5rem;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.6 ui-serif, Georgia, "Times New Roman", serif;
+  }
+  header {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 3.5rem 1.5rem 1rem;
+  }
+  h1 {
+    font-size: clamp(1.9rem, 4vw, 2.9rem);
+    line-height: 1.15;
+    margin: 0 0 0.6rem;
+    letter-spacing: -0.015em;
+  }
+  .lede { color: var(--dim); max-width: 62ch; margin: 0 0 0.4rem; }
+  main { max-width: 1180px; margin: 0 auto; padding: 0 1.5rem; }
+  h2 {
+    font-size: 0.78rem;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    margin: 3rem 0 0.8rem;
+    padding-bottom: 0.45rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .pair {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 1.1rem 0;
+  }
+  .shots { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; }
+  @media (max-width: 720px) { .shots { grid-template-columns: 1fr; } }
+  figure { margin: 0; display: flex; flex-direction: column; }
+  /* Fixed frame so a portrait reference and a 16:9 render line their captions
+     up instead of staggering down the column. */
+  .frame {
+    aspect-ratio: 3 / 2;
+    background: #0c0e11;
+    border-radius: 4px;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .frame img { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; }
+  figcaption {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--dim);
+    padding-top: 0.5rem;
+  }
+  .check { margin: 0.9rem 0 0; }
+  .check strong { font-weight: 600; }
+  .miss {
+    color: var(--warn);
+    border-left: 2px solid var(--warn);
+    padding-left: 0.8rem;
+    margin: 0.7rem 0 0;
+  }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 0.92rem; min-width: 560px; }
+  th, td { text-align: left; padding: 0.5rem 0.9rem 0.5rem 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--dim); }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.88em; }
+  footer { max-width: 1180px; margin: 3.5rem auto 0; padding: 1.5rem; color: var(--dim); font-size: 0.9rem; border-top: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Goldshire: reference against build</h1>
+  <p class="lede">
+    Every pair is a Blizzard screenshot beside the frame this build renders of the same
+    thing. The screenshots on the right come from <code>node tools/shoot.mjs --out refs/after</code>
+    and are deterministic: the clock, the player and the animation phase all freeze under
+    a <code>?cam=</code> preset, so any difference between two runs is a change to the world.
+  </p>
+  <p class="lede">
+    Where the build knowingly departs from the reference, it says so under the pair. A
+    board that only shows agreement proves nothing.
+  </p>
+</header>
+
+<main>
+
+<h2>The inn</h2>
+
+<div class="pair">
+  <div class="shots">
+    <figure><div class="frame"><img src="images/Lions_Pride_Inn.jpg" alt="Lion's Pride Inn, reference" /></div><figcaption>reference · Lions_Pride_Inn.jpg</figcaption></figure>
+    <figure><div class="frame"><img src="after/road.png" alt="The inn from the road" /></div><figcaption>build · ?cam=road</figcaption></figure>
+  </div>
+  <p class="check">
+    <strong>What this settles:</strong> roof sag and overhang, corner post flare, where the
+    lozenges sit, the chimney. The eave now clears the wall plate by geometry rather than
+    by luck: <code>eaveY</code> came down to 5.70 when <code>overhangZ</code> went to 1.5, and
+    <code>?wire=1</code> in <code>after/verify/</code> shows the overhang is real geometry with no
+    open slot at the junction. The lozenge run moved off the facade bays and onto the
+    flared posts, which is where every reference has it.
+  </p>
+  <p class="miss">
+    The authored inn is 16 x 10 m. The minimap's 59 x 33 m blob is a merged bounding box
+    over the inn, the stable and a neighbour, so it is not a wall measurement to match.
+    The horses at the right are Stage 8; the reference has an animal at the inn in every
+    wide shot.
+  </p>
+</div>
+
+<div class="pair">
+  <div class="shots">
+    <figure><div class="frame"><img src="images/goldshire_winterveil.jpg" alt="Inn from the porch side, reference" /></div><figcaption>reference · goldshire_winterveil.jpg</figcaption></figure>
+    <figure><div class="frame"><img src="after/porch.png" alt="The inn porch" /></div><figcaption>build · ?cam=porch</figcaption></figure>
+  </div>
+  <p class="check">
+    <strong>What this settles:</strong> the belt beam, plaster tone and post flare read from
+    the porch side. Light timber moved from <code>#8a6a44</code> to <code>#b1834e</code> and the
+    plaster warmed with it.
+  </p>
+</div>
+
+<div class="pair">
+  <div class="shots">
+    <figure><div class="frame"><img src="images/GoldshireInn.jpg" alt="The inn at night, reference" /></div><figcaption>reference · GoldshireInn.jpg</figcaption></figure>
+    <figure><div class="frame"><img src="after/nightSquare.png" alt="The inn at night" /></div><figcaption>build · ?cam=nightSquare</figcaption></figure>
+  </div>
+  <p class="check">
+    <strong>What this settles:</strong> window glow and lantern falloff. The bloom pass needs
+    the emissive drive above the diffuse ceiling, not a clever threshold: sunlit plaster at
+    <code>sunIntensity 1.5</code> already exceeds 1.0, so any threshold that spares plaster
+    also spares every window. Night emissives run 2.8 to 6.2 against a threshold of 1.55.
+  </p>
+</div>
+
+<div class="pair">
+  <div class="shots">
+    <figure><div class="frame"><img src="images/inn_interior.jpg" alt="Inn ground floor, reference" /></div><figcaption>reference · inn_interior.jpg</figcaption></figure>
+    <figure><div class="frame"><img src="after/hearth.png" alt="The taproom hearth" /></div><figcaption>build · ?cam=hearth</figcaption></figure>
+  </div>
+  <p class="check">
+    <strong>What this settles:</strong> bowed ceiling beams, the brick hearth and the plank
+    tone. Interior brick went from <code>#a3462f</code> to the reference's much hotter
+    <code>#b5571e</code>, and the straight <code>beam()</code> calls became bowed ones.
+  </p>
+</div>
+
+<h2>The smithy</h2>
+
+<div class="pair">
+  <div class="shots">
+    <figure><div class="frame"><img src="images/Goldshire.jpg" alt="Goldshire smithy, reference" /></div><figcaption>reference · Goldshire.jpg</figcaption></figure>
+    <figure><div class="frame"><img src="after/smithy.png" alt="The smithy" /></div><figcaption>build · ?cam=smithy</figcaption></figure>
+  </div>
+  <p class="check">
+    <strong>What this settles:</strong> the smithy is pale ashlar to the eave, not stone to
+    waist height with plaster above, and its loudest feature is the riveted plate hood over
+    the coals. What was here before was a 22 cm stove pipe. The mouth is 1.15 m, which is
+    the widest bell that still clears the chimney tower at 2.8 m centres.
+  </p>
+</div>
+
+<div class="pair">
+  <div class="shots">
+    <figure><div class="frame"><img src="images/Goldshire_Town.jpg" alt="Alliance banner at the smithy, reference" /></div><figcaption>reference · Goldshire_Town.jpg</figcaption></figure>
+    <figure><div class="frame"><img src="after/banner.png" alt="The Alliance banner" /></div><figcaption>build · ?cam=banner</figcaption></figure>
+  </div>
+  <p class="check">
+    <strong>What this settles:</strong> crenellated top, light border, gold gryphon, pointed
+    tail, hung from a timber arm on a free-standing pole. Built as a vertex grid rather than
+    a plane with an alpha-cut map: the silhouette is the whole point of a pennant, and an
+    alpha-tested material would be a second material instance that the static merge cannot
+    bucket with anything else.
+  </p>
+  <p class="miss">
+    The banner faces south-east, square to the junction approach. That is the only view it
+    exists to serve; from the smithy's own close-up preset the cloth is close to edge-on.
+  </p>
+</div>
+
+<h2>The junction</h2>
+
+<div class="pair">
+  <div class="shots">
+    <figure><div class="frame"><img src="images/Goldshire_Town.jpg" alt="Wide town shot, reference" /></div><figcaption>reference · Goldshire_Town.jpg</figcaption></figure>
+    <figure><div class="frame"><img src="after/crossroads.png" alt="The crossroads" /></div><figcaption>build · ?cam=crossroads</figcaption></figure>
+  </div>
+  <p class="check">
+    <strong>What this settles:</strong> the arrangement. Smithy left, inn away to the right,
+    cobble apron under the junction with dirt verges running out of it, split rail along the
+    road. The smithy moved from the south-west to the north-west, the inn from (20, -18) to
+    (49, -21), and the invented town hall was deleted: Goldshire has never had one.
+  </p>
+</div>
+
+<div class="pair">
+  <div class="shots">
+    <figure><div class="frame"><img src="images/WorldMap-Elwynn.jpg" alt="Elwynn Forest zone map, reference" /></div><figcaption>reference · WorldMap-Elwynn.jpg</figcaption></figure>
+    <figure><div class="frame"><img src="after/aerial.png" alt="Goldshire from above" /></div><figcaption>build · ?cam=aerial</figcaption></figure>
+  </div>
+  <p class="check">
+    <strong>What this settles:</strong> road topology. Bearings were measured off
+    <code>map/gs_zoom_marked.png</code> by walking circles of road pixels around the junction
+    rather than read off prose: 271&deg; west, 120&deg; east, 5&deg; north to the fork, then
+    321&deg; for Stormwind and 23&deg; for Northshire. The layout lint reports the built
+    bearings so a coordinate edit cannot quietly break one.
+  </p>
+  <p class="miss">
+    Crystal Lake's real west shore is around x = 153, past the fog wall at this density.
+    Its west shore sits at x = 125 here, which reads from the shore road, and the terrain stays
+    320 m at a 2 m grid rather than growing to 480 and under-sampling every road edge.
+  </p>
+</div>
+
+<div class="pair">
+  <div class="shots">
+    <figure><div class="frame"><img src="images/Goldshire.jpg" alt="Notice board and awning, reference" /></div><figcaption>reference · Goldshire.jpg</figcaption></figure>
+    <figure><div class="frame"><img src="after/noticeBoard.png" alt="The notice board" /></div><figcaption>build · ?cam=noticeBoard</figcaption></figure>
+  </div>
+  <p class="check">
+    <strong>What this settles:</strong> the peaked hexagonal board on two heavy posts, with a
+    timber X across a pinned face and a small shingled cap over the apex. The cap's pitch and
+    half-length are chosen so its outer ends land on the frame's own slope instead of
+    overhanging the face.
+  </p>
+</div>
+
+<div class="pair">
+  <div class="shots">
+    <figure><div class="frame"><img src="images/Goldshire.jpg" alt="Red canvas awning, reference" /></div><figcaption>reference · Goldshire.jpg</figcaption></figure>
+    <figure><div class="frame"><img src="after/awning.png" alt="The awning over Tharynn's goods" /></div><figcaption>build · ?cam=awning</figcaption></figure>
+  </div>
+  <p class="check">
+    <strong>What this settles:</strong> red canvas slung between poles, sagging, standing free
+    on the verge rather than fixed to the cart. Tharynn's crates and sacks moved under it.
+  </p>
+</div>
+
+<h2>The outbuildings and the forest</h2>
+
+<div class="pair">
+  <div class="shots">
+    <figure><div class="frame"><img src="images/northshire_stables.jpg" alt="Northshire stables, reference" /></div><figcaption>reference · northshire_stables.jpg</figcaption></figure>
+    <figure><div class="frame"><img src="after/stable.png" alt="The Goldshire stable" /></div><figcaption>build · ?cam=stable</figcaption></figure>
+  </div>
+  <p class="check">
+    <strong>What this settles:</strong> open-shed construction and post proportions. Closed on
+    the south and both gables, wide open to the road so the stalls, the hay and the tack all
+    read from it.
+  </p>
+</div>
+
+<div class="pair">
+  <div class="shots">
+    <figure><div class="frame"><img src="images/elwynn_forest.jpg" alt="Elwynn Forest, reference" /></div><figcaption>reference · elwynn_forest.jpg</figcaption></figure>
+    <figure><div class="frame"><img src="after/fork.png" alt="The road north to the fork" /></div><figcaption>build · ?cam=fork</figcaption></figure>
+  </div>
+  <p class="check">
+    <strong>What this settles:</strong> trunk scale and the canopy over the road. Trees were at
+    roughly half scale; Elwynn trunks are 2 to 4 m thick with the first branch 15 to 20 m up.
+    Crown card size is now a fraction of tree height rather than an absolute metre value, so
+    raising the height cannot leave a small crown on a tall trunk.
+  </p>
+</div>
+
+<div class="pair">
+  <div class="shots">
+    <figure><div class="frame"><img src="images/_verify_Lions_Pride_Inn.png" alt="Annotated palette crop sheet" /></div><figcaption>reference · _verify_Lions_Pride_Inn.png</figcaption></figure>
+    <figure><div class="frame"><img src="after/time/t18.png" alt="The village at 18:00" /></div><figcaption>build · ?cam=nightSquare&amp;time=18</figcaption></figure>
+  </div>
+  <p class="check">
+    <strong>What this settles:</strong> the palette numbers. Every colour in the project is a
+    CSS hex string in one file, sampled here against verified crops. The shingle grid also
+    coarsened from 8 x 12 to 6 x 8: on the inn roof that is 0.25 m of course exposure
+    against a reference reading of 0.30, where the old grid gave 0.19 and read as fish
+    scale from the road.
+  </p>
+</div>
+
+<h2>What was checked, and how</h2>
+
+<div class="pair">
+  <div class="scroll">
+  <table>
+    <tr><th>Check</th><th>Instrument</th><th>Result</th></tr>
+    <tr>
+      <td>Layout invariants</td>
+      <td><code>node tools/lint-layout.mjs</code></td>
+      <td>No pad overlaps, no fence or torch on paving, road bearings as measured, 77 props all at least 1.6 m clear of every road and pad</td>
+    </tr>
+    <tr>
+      <td>Collider holes</td>
+      <td><code>node tools/lint-collider.mjs</code></td>
+      <td>Inn ground, upper and cellar decks, the cellar flight, the roost switchback and 326 road samples: no hole, road grade worst 3 cm off the terrain's own answer</td>
+    </tr>
+    <tr>
+      <td>Frame cost</td>
+      <td><code>node tools/perf.mjs</code></td>
+      <td>Vsync-bound at 120 Hz in every preset, before the work and after it. <code>?cam=aerial</code> went from 331 draws and 287k triangles to 352 and 300k across all nine stages</td>
+    </tr>
+    <tr>
+      <td>Bloom at noon</td>
+      <td><code>after/time/t13.png</code></td>
+      <td>Nothing blooms but the sun. The cressets now go out at sunrise, which they did not before: their lights were already scaled by darkness but the flame cards were not</td>
+    </tr>
+    <tr>
+      <td>Roof overhang is geometry</td>
+      <td><code>after/verify/wire_road.png</code></td>
+      <td>Real eave, no open slot at the wall junction</td>
+    </tr>
+    <tr>
+      <td>Determinism</td>
+      <td><code>after/hashes.json</code></td>
+      <td>No <code>Math.random()</code> anywhere in the project; every scatter takes a seeded generator, so two runs of the shoot harness agree byte for byte</td>
+    </tr>
+  </table>
+  </div>
+  <p class="miss">
+    Open: the layout lint reports 6 of 400 pond samples above the waterline, where the shore
+    wobble reaches inside the sample grid. It is cosmetic at the pond's scale and unchanged
+    since the shoreline work.
+  </p>
+</div>
+
+</main>
+
+<footer>
+  Reference images are Blizzard screenshots held for visual comparison only. Sources are
+  listed in <code>refs/README.md</code>. Every frame on the right is generated at load time
+  from three.js primitives and canvas-painted textures; this project ships no art assets.
+</footer>
+</body>
+</html>

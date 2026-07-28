@@ -71,6 +71,8 @@ const CAM_PRESETS: Record<string, CamPreset> = {
   // The switchback ramp is the one piece of walkable geometry with no other
   // preset over it, which is exactly where a collider hole would go unnoticed.
   roost: { anchor: 'roost', pos: [8.0, 4.2, 8.5], look: [0.0, 3.6, 0.0] },
+  // Open-shed construction and post proportions, against northshire_stables.jpg.
+  stable: { anchor: 'stable', pos: [5.5, 2.1, -10.0], look: [0.0, 2.2, 0.0] },
   // The four Stage 8 landmarks, each square to the face it is meant to show.
   banner: { anchor: 'smithy', pos: [12.5, 2.6, 14.0], look: [6.5, 3.4, 5.3] },
   awning: { anchor: 'awning', pos: [0.0, 1.9, 6.2], look: [0.0, 1.6, 0.0] },
