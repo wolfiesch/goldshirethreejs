@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { leafMat, mat, waterMat } from '../gen/materials';
-import { fbm, makeRng, range, smoothstep, valueNoise2D } from '../gen/rng';
+import { clamp, fbm, makeRng, range, smoothstep, valueNoise2D } from '../gen/rng';
 import type { TickFn } from '../core/types';
 import { APRON, INN_FORECOURT, LAKE, ROADS, type RoadRect, type RoadSegment, TERRAIN_VOIDS, type Vec2, VERGE_WIDTH, flatInset } from './layout';
 
@@ -29,6 +29,45 @@ export function heightAt(x: number, z: number): number {
   const shore = smoothstep(LAKE.shoreStart, LAKE.shoreEnd, x);
   if (shore > 0) y = y * (1 - shore) + LAKE.bedY * shore;
   return y;
+}
+
+const CELL = SIZE / SEGS;
+const HALF = SIZE / 2;
+
+/**
+ * Ground height as the surface you actually stand on, which is not `heightAt`.
+ *
+ * The ground is a `PlaneGeometry` sampled at `CELL` spacing, so the real
+ * surface is the piecewise-linear interpolation of `heightAt` across those
+ * triangles. Chord versus arc over a 2 m cell differs by up to about 5 cm,
+ * which is exactly the gap between a barrel resting on the ground and a barrel
+ * hovering above it, so every placement has to sample the chord.
+ *
+ * The triangulation below mirrors `PlaneGeometry`'s: each cell splits into
+ * (a, b, d) and (b, c, d) with a at the low corner, so the diagonal runs from
+ * (x0, z1) to (x1, z0).
+ *
+ * Inside a `TERRAIN_VOIDS` rectangle there is no ground at all and this returns
+ * the height the ground would have had. Nothing is placed in one: they exist
+ * to make room for the cellar.
+ */
+export function groundY(x: number, z: number): number {
+  const fx = clamp((x + HALF) / CELL, 0, SEGS);
+  const fz = clamp((z + HALF) / CELL, 0, SEGS);
+  const ix = Math.min(SEGS - 1, Math.floor(fx));
+  const iz = Math.min(SEGS - 1, Math.floor(fz));
+  const u = fx - ix;
+  const v = fz - iz;
+  const x0 = -HALF + ix * CELL;
+  const z0 = -HALF + iz * CELL;
+  const x1 = x0 + CELL;
+  const z1 = z0 + CELL;
+  const ha = heightAt(x0, z0);
+  const hb = heightAt(x0, z1);
+  const hd = heightAt(x1, z0);
+  if (u + v <= 1) return ha + (hd - ha) * u + (hb - ha) * v;
+  const hc = heightAt(x1, z1);
+  return hb + (hc - hb) * (u + v - 1) + (hd - hb) * (1 - v);
 }
 
 /** Ribbon of road between two points; edges wander so nothing looks stamped. */
@@ -215,7 +254,7 @@ function buildReeds(): THREE.InstancedMesh {
   for (let i = 0; i < 260; i++) {
     const x = range(rng, 98, 108);
     const z = range(rng, -62, 82);
-    const y = heightAt(x, z);
+    const y = groundY(x, z);
     if (y > 0.1) continue;
     const s = range(rng, 0.7, 1.5);
     p.set(x, y + s * 0.5, z);

@@ -280,9 +280,22 @@ declare global {
       collider: THREE.Mesh;
       player: typeof player;
       step: (dt: number) => void;
+      groundY: (x: number, z: number) => number;
       THREE: typeof THREE;
     };
   }
 }
 
-window.__goldshire = { scene, camera, renderer, setTime, getTime, LAYOUT, collider, player, step, THREE };
+window.__goldshire = {
+  scene,
+  camera,
+  renderer,
+  setTime,
+  getTime,
+  LAYOUT,
+  collider,
+  player,
+  step,
+  groundY: world.groundY,
+  THREE,
+};

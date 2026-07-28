@@ -4,6 +4,7 @@ import { coneMat, leafMat, mat } from '../gen/materials';
 import { taperedPost } from '../gen/prims';
 import { clamp, makeRng, poissonDisc, range, type Rng } from '../gen/rng';
 import { PLACEMENTS, ROADS, SPECIMEN_TREES, distanceToSegment, flatInset } from './layout';
+import { groundY } from './terrain';
 
 /**
  * Every tree, bush and grass tuft in the 320 x 320 m world, as a handful of
@@ -141,8 +142,11 @@ function makeTreeInstance(rng: Rng, x: number, z: number): TreeInstance {
   const lean = ((6 * Math.PI) / 180) * range(rng, 0.35, 1);
 
   const euler = new THREE.Euler(Math.sin(leanDir) * lean, spin, Math.cos(leanDir) * lean, 'YXZ');
+  // The lift belongs in the instance matrix, not in a later pass:
+  // buildTrunkCollision bakes this same matrix, so the collision proxy follows
+  // the terrain for free and cannot drift from what you see.
   const matrix = new THREE.Matrix4().compose(
-    new THREE.Vector3(x, 0, z),
+    new THREE.Vector3(x, groundY(x, z), z),
     new THREE.Quaternion().setFromEuler(euler),
     new THREE.Vector3(scale, scale, scale),
   );
@@ -221,7 +225,7 @@ function placeBushes(rng: Rng): THREE.Matrix4[] {
     const size = range(rng, 1.2, 2.0);
     out.push(
       new THREE.Matrix4().compose(
-        new THREE.Vector3(x, 0, z),
+        new THREE.Vector3(x, groundY(x, z), z),
         new THREE.Quaternion().setFromEuler(new THREE.Euler(0, range(rng, 0, TAU), 0)),
         new THREE.Vector3(size, size * range(rng, 0.8, 1.1), size),
       ),
@@ -261,7 +265,7 @@ function placeGrass(rng: Rng): THREE.Matrix4[] {
     const size = range(rng, 0.3, 0.6);
     out.push(
       new THREE.Matrix4().compose(
-        new THREE.Vector3(x, 0, z),
+        new THREE.Vector3(x, groundY(x, z), z),
         new THREE.Quaternion().setFromEuler(new THREE.Euler(0, range(rng, 0, TAU), 0)),
         new THREE.Vector3(size, size * range(rng, 0.85, 1.25), size),
       ),

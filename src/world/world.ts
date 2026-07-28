@@ -4,13 +4,18 @@ import { buildVillageProps } from '../build/props';
 import type { TickFn } from '../core/types';
 import { LAYOUT } from './buildings';
 import { buildFoliage } from './foliage';
-import { buildTerrain, heightAt } from './terrain';
+import { buildTerrain, groundY } from './terrain';
 
 export interface World {
   root: THREE.Group;
   tickables: TickFn[];
   interiorLights: THREE.PointLight[];
-  heightAt(x: number, z: number): number;
+  /**
+   * Height of the walkable surface. This is `groundY` and not `heightAt`: the
+   * two differ by up to about 5 cm, and anything placed against the ideal
+   * height field rather than the mesh hovers or sinks.
+   */
+  groundY(x: number, z: number): number;
 }
 
 /**
@@ -51,7 +56,7 @@ export function buildWorld(): World {
     if (light.isPointLight && light.userData.interior) interiorLights.push(light);
   });
 
-  return { root, tickables, interiorLights, heightAt };
+  return { root, tickables, interiorLights, groundY };
 }
 
 /**

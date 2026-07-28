@@ -388,6 +388,15 @@ export interface FenceOpts {
   railHeights?: number[];
   postHeight?: number;
   rng?: Rng;
+  /**
+   * Ground height along the run. A fence is the only prop here with positions
+   * of its own between its endpoints, so it cannot be lifted by its caller: the
+   * posts have to sample the terrain individually or a run across a slope
+   * either floats at one end or buries itself at the other.
+   *
+   * Passed in rather than imported so this module stays world-agnostic.
+   */
+  groundAt?: (x: number, z: number) => number;
 }
 
 /** Post-and-rail fence between two ground points; posts lean slightly. */
@@ -397,6 +406,7 @@ export function splitRailFence(from: Vec2, to: Vec2, opts: FenceOpts = {}): THRE
   const rails = opts.railHeights ?? [0.55, 1.0];
   const postH = opts.postHeight ?? 1.25;
   const rng = opts.rng ?? makeRng(0x51ce);
+  const groundAt = opts.groundAt ?? (() => 0);
   const dx = to[0] - from[0];
   const dz = to[1] - from[1];
   const len = Math.hypot(dx, dz);
@@ -404,10 +414,16 @@ export function splitRailFence(from: Vec2, to: Vec2, opts: FenceOpts = {}): THRE
   const angle = Math.atan2(dz, dx);
   const timber = mat('timberLight');
 
+  const at = (t: number): [number, number, number] => {
+    const x = from[0] + dx * t;
+    const z = from[1] + dz * t;
+    return [x, groundAt(x, z), z];
+  };
+
   for (let i = 0; i <= count; i++) {
-    const t = i / count;
+    const [x, gy, z] = at(i / count);
     const post = box(0.16, postH, 0.16, timber, {
-      pos: [from[0] + dx * t, postH / 2, from[1] + dz * t],
+      pos: [x, gy + postH / 2, z],
       uvScale: 0.9,
     });
     post.rotation.z = jitter(rng, (3 * Math.PI) / 180);
@@ -415,18 +431,24 @@ export function splitRailFence(from: Vec2, to: Vec2, opts: FenceOpts = {}): THRE
     post.rotation.y = angle;
     g.add(post);
   }
+  const seg = len / count;
   for (const h of rails) {
     for (let i = 0; i < count; i++) {
-      const t0 = i / count;
-      const t1 = (i + 1) / count;
-      const midX = from[0] + dx * (t0 + t1) / 2;
-      const midZ = from[1] + dz * (t0 + t1) / 2;
-      const rail = box(len / count + 0.06, 0.09, 0.13, timber, {
-        pos: [midX, h + jitter(rng, 0.03), midZ],
+      const [, gy0] = at(i / count);
+      const [, gy1] = at((i + 1) / count);
+      const [mx, mgy, mz] = at((i + 0.5) / count);
+      const rail = box(seg + 0.06, 0.09, 0.13, timber, {
+        pos: [mx, mgy + h + jitter(rng, 0.03), mz],
         uvScale: 1.4,
       });
+      /*
+       * Euler order is XYZ, so Z is applied first, in the box's own frame: it
+       * pitches the long axis before Y swings it onto the run bearing. That
+       * makes the rail follow the slope between its two posts instead of
+       * cutting through the high one.
+       */
       rail.rotation.y = -angle;
-      rail.rotation.z = jitter(rng, (1.5 * Math.PI) / 180);
+      rail.rotation.z = Math.atan2(gy1 - gy0, seg) + jitter(rng, (1.5 * Math.PI) / 180);
       g.add(rail);
     }
   }

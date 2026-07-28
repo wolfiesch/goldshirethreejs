@@ -4,6 +4,7 @@ import { mat } from '../gen/materials';
 import { barrel, box, crate, cylinder, fireEffect, sack, splitRailFence, spokedWheel, taperedPost } from '../gen/prims';
 import { jitter, makeRng, range } from '../gen/rng';
 import { BENCHES, FENCE_RUNS, TORCH_POSTS } from '../world/layout';
+import { groundY } from '../world/terrain';
 
 /**
  * Outdoor dressing: the loose props that make the clearing look inhabited.
@@ -313,67 +314,67 @@ export function buildVillageProps(): THREE.Group {
   const nextSeed = (): number => (seed = (seed + 0x9e37) | 0);
 
   for (const run of FENCE_RUNS) {
-    root.add(splitRailFence(run.from, run.to));
+    root.add(splitRailFence(run.from, run.to, { groundAt: groundY }));
   }
 
   for (const [x, z] of TORCH_POSTS) {
     const torch = buildTorchPost(nextSeed());
-    torch.position.set(x, 0, z);
+    torch.position.set(x, groundY(x, z), z);
     root.add(torch);
   }
 
   for (const b of BENCHES) {
     const bench = buildBench(nextSeed());
-    bench.position.set(b.pos[0], 0, b.pos[1]);
+    bench.position.set(b.pos[0], groundY(b.pos[0], b.pos[1]), b.pos[1]);
     bench.rotation.y = b.rotY;
     root.add(bench);
   }
 
   for (const [x, z] of BARRELS) {
     const b = barrel(0.36, 0.86, mat('timberDark'), mat('metalDark'));
-    b.position.set(x, 0, z);
+    b.position.set(x, groundY(x, z), z);
     b.rotation.y = range(rng, 0, Math.PI * 2);
     root.add(b);
   }
 
   for (const [x, z] of CRATES) {
     const c = crate(0.7, mat('timberLight'));
-    c.position.set(x, 0, z);
+    c.position.set(x, groundY(x, z), z);
     c.rotation.y = range(rng, 0, Math.PI * 2);
     root.add(c);
   }
 
   for (const [x, z] of SACK_PILES) {
     const p = buildSackPile(nextSeed());
-    p.position.set(x, 0, z);
+    p.position.set(x, groundY(x, z), z);
     p.rotation.y = range(rng, 0, Math.PI * 2);
     root.add(p);
   }
 
   for (const [x, z] of HAYSTACKS) {
     const h = buildHaystack(nextSeed());
-    h.position.set(x, 0, z);
+    h.position.set(x, groundY(x, z), z);
     h.rotation.y = range(rng, 0, Math.PI * 2);
     root.add(h);
   }
 
   for (const [x, z] of LOG_PILES) {
     const l = buildLogPile(nextSeed());
-    l.position.set(x, 0, z);
+    l.position.set(x, groundY(x, z), z);
     l.rotation.y = range(rng, 0, Math.PI * 2);
     root.add(l);
   }
 
   for (const [x, z] of WHEELBARROWS) {
     const w = buildWheelbarrow(nextSeed());
-    w.position.set(x, 0, z);
+    w.position.set(x, groundY(x, z), z);
     w.rotation.y = range(rng, 0, Math.PI * 2);
     root.add(w);
   }
 
   for (const [x, z] of STUMPS) {
     const s = buildStump(nextSeed());
-    s.position.set(x, 0, z);
+    s.position.set(x, groundY(x, z), z);
     s.rotation.y = range(rng, 0, Math.PI * 2);
     root.add(s);
   }
