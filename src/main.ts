@@ -95,6 +95,8 @@ const INN_CENTRE = (() => {
 })();
 /** Frozen animation phase for the `?cam=` presets, so screenshots are stable. */
 const FROZEN_ELAPSED = 3.7;
+/** Beyond this, an interior point light is switched off rather than uploaded. */
+const LIGHT_CULL = 30;
 
 const host = document.getElementById('app');
 if (!host) throw new Error('#app host element missing');
@@ -248,9 +250,16 @@ function step(dt: number): void {
 
   for (const tick of world.tickables) tick(camPreset ? 0 : dt, animTime);
 
-  // Interior point lights only matter when the player is near the inn.
-  const nearInn = eye.distanceTo(INN_CENTRE) < 30;
-  for (const light of world.interiorLights) light.visible = nearInn;
+  /*
+   * Interior point lights cull against their own position, not the inn's.
+   * three.js uploads every visible light to every material's uniform arrays,
+   * so a light costs shader work on every lit fragment in the frame whether or
+   * not anything near it is on screen. Gating the lot on one building meant
+   * the smithy forge either lit the whole world or went out indoors.
+   */
+  for (const light of world.interiorLights) {
+    light.visible = eye.distanceToSquared(light.userData.worldPos as THREE.Vector3) < LIGHT_CULL * LIGHT_CULL;
+  }
 
   if (!camPreset && player.position.y < -20) player.teleport(SPAWN[0], SPAWN[1], SPAWN[2]);
 

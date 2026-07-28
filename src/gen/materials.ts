@@ -28,6 +28,7 @@ export type MatKey =
   | 'hay'
   | 'noticeBoard'
   | 'metalDark'
+  | 'metalGrey'
   | 'metalBrass'
   | 'wax'
   | 'clay'
@@ -66,6 +67,9 @@ const SPECS: Record<MatKey, MatSpec> = {
   parchment: { map: 'parchment', color: 0xffffff },
   painting: { map: 'painting', color: 0xffffff },
   metalDark: { map: null, color: 0x3a3a3e },
+  // Pale blue-grey plate iron, the smithy flue hood. Distinct from metalDark,
+  // which is the near-black of tools and hoops and disappears against shadow.
+  metalGrey: { map: null, color: 0x8b9199 },
   metalBrass: { map: null, color: 0x8a6b32 },
   coal: { map: null, color: 0x1c1512 },
   wax: { map: null, color: 0xece0c0 },

@@ -11,17 +11,20 @@ import {
   buildWagon,
   buildWell,
 } from '../build/streetFurniture';
-import { buildTownHall } from '../build/townhall';
 import { PLACEMENTS, type Placement } from './layout';
 
 /**
  * Pairs each layout placement with its builder. Builders never read layout
  * data; layout never knows how a building is made.
+ *
+ * There is no town hall. Goldshire has never had one: Marshal Dughan gives his
+ * orders standing in the road. `build/townhall.ts` stays on disk unimported
+ * because it is the only jettied half-timber construction in the repo and
+ * worth keeping as a reference, and `tsc --noEmit` still typechecks it.
  */
 const BUILDERS: Record<string, () => THREE.Group> = {
   inn: buildInn,
   smithy: buildSmithy,
-  townhall: buildTownHall,
   stable: buildStable,
   cottageA: () => buildCottage('a'),
   cottageB: () => buildCottage('b'),

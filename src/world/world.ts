@@ -53,7 +53,13 @@ export function buildWorld(): World {
     const tick = o.userData.tick as TickFn | undefined;
     if (typeof tick === 'function') tickables.push(tick);
     const light = o as THREE.PointLight;
-    if (light.isPointLight && light.userData.interior) interiorLights.push(light);
+    if (light.isPointLight && light.userData.interior) {
+      // Stashed once, here, because `root.updateMatrixWorld` has just run and
+      // none of these lights ever moves again. The render loop culls against
+      // this rather than recomputing a world position every frame.
+      light.userData.worldPos = light.getWorldPosition(new THREE.Vector3());
+      interiorLights.push(light);
+    }
   });
 
   return { root, tickables, interiorLights, groundY };

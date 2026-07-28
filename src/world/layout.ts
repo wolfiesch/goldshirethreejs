@@ -30,7 +30,6 @@ export interface Placement extends PlacementSpec {
 export const PLACEMENTS: PlacementSpec[] = [
   { id: 'inn', pos: [20, 0, -18], rotY: 0, pad: [22, 20] },
   { id: 'smithy', pos: [-22, 0, 14], rotY: 0, pad: [16, 13] },
-  { id: 'townhall', pos: [-24, 0, -20], rotY: 0, pad: [17, 13] },
   { id: 'stable', pos: [44, 0, -14], rotY: 0, pad: [14, 10] },
   { id: 'cottageA', pos: [26, 0, 18], rotY: Math.PI, pad: [13, 11] },
   { id: 'cottageB', pos: [-48, 0, -11], rotY: Math.PI / 2, pad: [12, 10] },

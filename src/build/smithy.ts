@@ -13,16 +13,20 @@ import {
 import { jitter, makeRng } from '../gen/rng';
 
 /**
- * The Goldshire smithy: grey stone to waist height, half-timbered above, a
- * steep swayback shingle roof and the round stone chimney tower that reads as
- * a silhouette from across the crossroads. The north side is wide open onto
- * the road so the forge glow, the anvil and the racks are all visible from it.
+ * The Goldshire smithy: pale ashlar to the eave, a steep swayback shingle
+ * roof, the round stone chimney tower that reads as a silhouette from across
+ * the crossroads, and the riveted iron flue hood over the coals. The north
+ * side is wide open onto the road so the forge glow, the anvil and the racks
+ * are all visible from it.
+ *
+ * Stone all the way up, not stone to waist height with plaster and
+ * half-timbering above: every reference shows a stone shed, which is what a
+ * building with an open fire in it would be.
  */
 
 const HALF_X = 6; // 12 m along X
 const HALF_Z = 4.5; // 9 m along Z
 const WALL = 0.4;
-const STONE_TOP = 2.2;
 const EAVE = 4.0;
 const RIDGE = 7.2;
 
@@ -54,7 +58,6 @@ function gableInfill(halfSpan: number, rise: number, thickness: number, material
 function forge(): THREE.Group {
   const g = new THREE.Group();
   const brick = mat('brick');
-  const iron = mat('metalDark');
 
   g.add(box(2.0, FORGE_TOP, 1.4, brick, { pos: [0, FORGE_TOP / 2, 0], uvScale: 1.1 }));
   // Raised lip so the coal bed sits in a tray rather than on a slab.
@@ -80,25 +83,106 @@ function forge(): THREE.Group {
   const light = new THREE.PointLight(0xff7a28, 3.2, 16, 2);
   light.position.set(0, FORGE_TOP + 0.5, 0);
   light.castShadow = false;
+  // Distance-culled with the rest. Untagged it was the one light in the scene
+  // uploaded to every material's uniforms from anywhere in the world.
+  light.userData.interior = true;
   g.add(light);
 
-  // Riveted flue: up out of the forge, then a horizontal elbow into the tower.
-  const riseLen = 1.35;
-  g.add(cylinder(0.22, riseLen, 10, iron, { pos: [0, FORGE_TOP + riseLen / 2, 0] }));
-  const elbowY = FORGE_TOP + riseLen;
+  g.add(flueHood());
+  return g;
+}
+
+/**
+ * The riveted plate hood over the coals, elbowing into the chimney tower.
+ *
+ * This is the smithy's loudest feature in every reference, and what was here
+ * before was a 22 cm stove pipe. The mouth is sized to the widest bell that
+ * still clears the tower: at 2.8 m between forge and tower centres against a
+ * 1.6 m tower radius there is only about 1.25 m to give, so 1.15 m it is.
+ *
+ * Local to the forge group, so it moves with the forge.
+ */
+function flueHood(): THREE.Group {
+  const g = new THREE.Group();
+  const plate = mat('metalGrey');
+  const dark = mat('metalDark');
+
+  const MOUTH_R = 1.15;
+  const THROAT_R = 0.62;
+  const mouthY = 1.95;
+  const throatY = 2.95;
+  const runY = 3.35;
+
+  // Twelve sides so it reads as folded plate rather than a turned pipe. Open
+  // at both ends: the throat above and the sooted disc below close it off.
+  const bell = new THREE.Mesh(
+    new THREE.CylinderGeometry(THROAT_R, MOUTH_R, throatY - mouthY, 12, 1, true),
+    plate,
+  );
+  bell.position.y = (mouthY + throatY) / 2;
+  bell.castShadow = true;
+  bell.receiveShadow = true;
+  g.add(bell);
+
+  // Looking up into the hood should find soot, not the sky through a backface.
+  const soot = new THREE.Mesh(new THREE.CircleGeometry(THROAT_R, 12), mat('coal'));
+  soot.rotation.x = Math.PI / 2;
+  soot.position.y = throatY - 0.01;
+  soot.userData.collide = false;
+  g.add(soot);
+
+  g.add(cylinder(THROAT_R, runY - throatY + 0.3, 12, plate, { pos: [0, (throatY + runY) / 2 + 0.15, 0] }));
+
+  // Elbow knuckle, then the run west into the tower.
+  g.add(cylinder(THROAT_R + 0.07, 0.36, 12, plate, { pos: [0, runY, 0] }));
   const towerFace = TOWER_X + Math.sqrt(TOWER_R * TOWER_R - FORGE_Z * FORGE_Z);
-  const runLen = FORGE_X - towerFace + 0.3;
+  const runLen = FORGE_X - towerFace + 0.4;
   g.add(
-    cylinder(0.22, runLen, 10, iron, {
-      pos: [-runLen / 2 + 0.05, elbowY, 0],
+    cylinder(THROAT_R, runLen, 12, plate, {
+      pos: [-runLen / 2, runY, 0],
       rot: [0, 0, Math.PI / 2],
     }),
   );
-  g.add(cylinder(0.27, 0.24, 10, iron, { pos: [0, elbowY, 0] }));
+
+  // Rolled rim on the mouth, plus rivets around it.
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(MOUTH_R, 0.075, 5, 20), dark);
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = mouthY + 0.04;
+  rim.castShadow = true;
+  g.add(rim);
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    g.add(
+      box(0.09, 0.09, 0.09, dark, {
+        pos: [Math.cos(a) * (MOUTH_R + 0.02), mouthY + 0.24, Math.sin(a) * (MOUTH_R + 0.02)],
+        uvScale: 0.1,
+      }),
+    );
+  }
+
+  // Seams up the bell: four folded plates, not one spun cone.
+  const slant = Math.hypot(MOUTH_R - THROAT_R, throatY - mouthY);
+  const rMid = (MOUTH_R + THROAT_R) * 0.5;
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 8;
+    const seam = box(0.1, slant, 0.1, dark, {
+      pos: [Math.sin(a) * rMid, (mouthY + throatY) / 2, Math.cos(a) * rMid],
+      uvScale: 0.3,
+    });
+    // YXZ so the lean is applied before the spin. Under the default XYZ the
+    // spin runs first and the lean then tilts in world axes, which throws
+    // three of the four seams off the cone entirely.
+    seam.rotation.order = 'YXZ';
+    seam.rotation.y = a + Math.PI;
+    seam.rotation.x = Math.atan2(MOUTH_R - THROAT_R, throatY - mouthY);
+    g.add(seam);
+  }
+
+  // Banding along the horizontal run.
   for (let i = 0; i < 3; i++) {
-    const band = new THREE.Mesh(new THREE.TorusGeometry(0.235, 0.026, 4, 10), iron);
+    const band = new THREE.Mesh(new THREE.TorusGeometry(THROAT_R + 0.04, 0.05, 5, 12), dark);
     band.rotation.y = Math.PI / 2;
-    band.position.set(-0.35 - i * 0.42, elbowY, 0);
+    band.position.set(-0.4 - i * 0.45, runY, 0);
     g.add(band);
   }
   return g;
@@ -246,7 +330,7 @@ export function buildSmithy(): THREE.Group {
   g.name = 'smithy';
 
   const stone = mat('stoneBlock');
-  const plaster = mat('plaster');
+  const carved = mat('carvedStone');
   const timber = mat('timberDark');
 
   // Beaten earth floor under the shed.
@@ -261,16 +345,14 @@ export function buildSmithy(): THREE.Group {
   const sideX = HALF_X - WALL / 2;
   const southLen = HALF_X * 2 - WALL * 2;
 
-  // South wall: stone plinth, plaster above.
-  g.add(box(southLen, STONE_TOP, WALL, stone, { pos: [0, STONE_TOP / 2, southZ] }));
-  g.add(box(southLen, EAVE - STONE_TOP, WALL, plaster, { pos: [0, (EAVE + STONE_TOP) / 2, southZ] }));
-  // East and west walls run the full depth and carry the gables.
+  // Ashlar to the eave on all three closed sides, gables included.
+  g.add(box(southLen, EAVE, WALL, stone, { pos: [0, EAVE / 2, southZ] }));
   for (const sx of [-1, 1]) {
-    g.add(box(WALL, STONE_TOP, HALF_Z * 2, stone, { pos: [sx * sideX, STONE_TOP / 2, 0] }));
-    g.add(box(WALL, EAVE - STONE_TOP, HALF_Z * 2, plaster, { pos: [sx * sideX, (EAVE + STONE_TOP) / 2, 0] }));
-    const gable = gableInfill(HALF_Z, RIDGE - EAVE, WALL, mat('plaster', 0.5, 0.5));
+    g.add(box(WALL, EAVE, HALF_Z * 2, stone, { pos: [sx * sideX, EAVE / 2, 0] }));
+    const gable = gableInfill(HALF_Z, RIDGE - EAVE, WALL, mat('stoneBlock', 0.5, 0.5));
     gable.position.set(sx * sideX, EAVE, 0);
     g.add(gable);
+    // Collar and king post, the only timber left on the shell.
     g.add(box(WALL + 0.06, 0.2, HALF_Z * 1.1, timber, { pos: [sx * sideX, EAVE + 1.2, 0], uvScale: 1 }));
     g.add(
       box(WALL + 0.06, RIDGE - EAVE - 0.2, 0.22, timber, {
@@ -280,20 +362,13 @@ export function buildSmithy(): THREE.Group {
     );
   }
 
-  // Half-timber framing over the plaster band of the three closed sides.
-  const sillY = STONE_TOP + 0.12;
-  const headY = EAVE - 0.16;
-  g.add(box(southLen + 0.2, 0.22, WALL + 0.12, timber, { pos: [0, sillY, southZ], uvScale: 1.4 }));
-  g.add(box(southLen + 0.2, 0.26, WALL + 0.12, timber, { pos: [0, headY, southZ], uvScale: 1.4 }));
-  for (const x of [-4.2, -2.1, 0, 2.1, 4.2]) {
-    g.add(box(0.22, headY - sillY, WALL + 0.1, timber, { pos: [x, (sillY + headY) / 2, southZ], uvScale: 1 }));
-  }
+  // A dressed band at the eave line and a splayed plinth at grade, which is
+  // what stops a plain ashlar box from reading as a shipping container.
+  g.add(box(southLen + 0.5, 0.26, WALL + 0.22, carved, { pos: [0, EAVE - 0.13, southZ], uvScale: 1.4 }));
+  g.add(box(southLen + 0.5, 0.34, WALL + 0.34, carved, { pos: [0, 0.17, southZ], uvScale: 1.4 }));
   for (const sx of [-1, 1]) {
-    g.add(box(WALL + 0.12, 0.22, HALF_Z * 2, timber, { pos: [sx * sideX, sillY, 0], uvScale: 1.4 }));
-    g.add(box(WALL + 0.12, 0.26, HALF_Z * 2, timber, { pos: [sx * sideX, headY, 0], uvScale: 1.4 }));
-    for (const z of [-3.0, -1.0, 1.0, 3.0]) {
-      g.add(box(WALL + 0.1, headY - sillY, 0.22, timber, { pos: [sx * sideX, (sillY + headY) / 2, z], uvScale: 1 }));
-    }
+    g.add(box(WALL + 0.22, 0.26, HALF_Z * 2 + 0.5, carved, { pos: [sx * sideX, EAVE - 0.13, 0], uvScale: 1.4 }));
+    g.add(box(WALL + 0.34, 0.34, HALF_Z * 2 + 0.5, carved, { pos: [sx * sideX, 0.17, 0], uvScale: 1.4 }));
   }
 
   // Open north side: two flared posts and a braced head beam. No wall.
