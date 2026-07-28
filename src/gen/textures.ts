@@ -205,27 +205,39 @@ const GENERATORS: Record<TexKey, (s: Surface, rng: Rng, noise: Noise2D) => void>
     ctx.fillRect(0, 0, SIZE * 0.06, SIZE);
   },
 
+  /**
+   * The flared corner posts are the largest area of this in the scene, and the
+   * reference reads them as pale gold, not the muddy brown they were.
+   */
   timberLight(s, rng, noise) {
     const { ctx } = s;
-    fill(ctx, '#8a6a44');
+    fill(ctx, '#b1834e');
     mottle(ctx, noise, 7, 0.09);
-    woodGrain(ctx, rng, 40, '#6f5334', '#a58156', 0, SIZE);
-    knots(ctx, rng, 6, '#5a3f24', 0, SIZE);
+    woodGrain(ctx, rng, 40, '#8e693e', '#c9a06a', 0, SIZE);
+    knots(ctx, rng, 6, '#74532e', 0, SIZE);
     const grad = ctx.createLinearGradient(0, 0, SIZE * 0.06, 0);
-    grad.addColorStop(0, 'rgba(196,166,124,0.8)');
-    grad.addColorStop(1, 'rgba(196,166,124,0)');
+    grad.addColorStop(0, 'rgba(201,160,106,0.8)');
+    grad.addColorStop(1, 'rgba(201,160,106,0)');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, SIZE * 0.06, SIZE);
   },
 
   shingleBlue(s, rng) {
     const { ctx } = s;
-    const rows = 8;
-    const cols = 12;
+    /*
+     * 6 x 8 puts about 0.37 m of shingle and 0.25 m of course exposure on the
+     * inn roof, against a reference reading of 0.45 and 0.30. The old 8 x 12
+     * measured 0.24 and 0.19, which reads as fish scale from the road.
+     *
+     * `rows` must stay even. The stagger alternates per row, so an odd count
+     * puts two unoffset rows against each other where the texture wraps.
+     */
+    const rows = 6;
+    const cols = 8;
     const rowH = SIZE / rows;
     const colW = SIZE / cols;
-    fill(ctx, '#22405c');
-    const palette = ['#3f6f9c', '#4a7fae', '#35608a', '#5d92bf'];
+    fill(ctx, '#1e3557');
+    const palette = ['#3e6297', '#4a72ab', '#345584', '#5b8ac4'];
     const weights = [40, 30, 20, 10];
     for (let r = 0; r < rows; r++) {
       const y = r * rowH;
@@ -234,9 +246,8 @@ const GENERATORS: Record<TexKey, (s: Surface, rng: Rng, noise: Noise2D) => void>
         const x = c * colW + offset;
         const roll = rng();
         let color = pickWeighted(rng, palette, weights);
-        // Sparse accents only: a bright fleck rate above ~1% reads as snow.
-        if (roll < 0.012) color = '#74a3c8';
-        else if (roll < 0.03) color = '#b08c40';
+        if (roll < 0.1) color = '#72abe7';
+        else if (roll < 0.15) color = '#c9b48a';
         const w = colW - 1.5;
         const h = rowH - 1.5;
         const lip = h * 0.34;
@@ -254,6 +265,15 @@ const GENERATORS: Record<TexKey, (s: Surface, rng: Rng, noise: Noise2D) => void>
         g.addColorStop(1, 'rgba(20,38,56,0.45)');
         ctx.fillStyle = g;
         ctx.fill();
+        // Sun-bleached cream wash down the shoulder of about a third of them.
+        // This is what stops a blue roof reading as one flat blue shape.
+        if (rng() < 0.34) {
+          const bleach = ctx.createLinearGradient(0, y, 0, y + h * 0.82);
+          bleach.addColorStop(0, `rgba(214,196,158,${range(rng, 0.14, 0.44).toFixed(3)})`);
+          bleach.addColorStop(1, 'rgba(214,196,158,0)');
+          ctx.fillStyle = bleach;
+          ctx.fill();
+        }
       }
     }
   },
@@ -415,17 +435,22 @@ const GENERATORS: Record<TexKey, (s: Surface, rng: Rng, noise: Noise2D) => void>
     }
   },
 
+  /** Warmer amber than before: the taproom floor is honey in every reference. */
   plankFloor(s, rng, noise) {
-    plankBoards(s, rng, noise, '#a67c4a', '#5a3f22', false);
+    plankBoards(s, rng, noise, '#b58044', '#5c3a1c', false);
   },
 
   plankWall(s, rng, noise) {
     plankBoards(s, rng, noise, '#7d5c38', '#4c3620', true);
   },
 
+  /**
+   * Hearth and chimney brick. The reference is a hot orange-red, well clear of
+   * the brown the mortar sits at; the old value read as terracotta plant pot.
+   */
   brick(s, rng, noise) {
     const { ctx } = s;
-    fill(ctx, '#7d6a58');
+    fill(ctx, '#6e5340');
     const courses = 12;
     const rowH = SIZE / courses;
     for (let r = 0; r < courses; r++) {
@@ -434,7 +459,7 @@ const GENERATORS: Record<TexKey, (s: Surface, rng: Rng, noise: Noise2D) => void>
       const brickW = SIZE / 5;
       for (let c = -1; c <= 5; c++) {
         const x = (c + offset) * brickW;
-        ctx.fillStyle = shade('#a3462f', 1 + jitter(rng, 0.1));
+        ctx.fillStyle = shade(rng() < 0.3 ? '#c26c2f' : '#b5571e', 1 + jitter(rng, 0.1));
         ctx.fillRect(x + 1, y + 1, brickW - 2, rowH - 2);
         ctx.fillStyle = 'rgba(255,255,255,0.07)';
         ctx.fillRect(x + 1, y + 1, brickW - 2, 1.6);
