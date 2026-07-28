@@ -54,6 +54,13 @@ export interface RoadRect {
   centre: Vec2;
   size: Vec2;
   surface: RoadSurface;
+  /**
+   * Bearing of the rect's long axis. `size` is measured in the rect's own
+   * frame, so a forecourt meeting an oblique road turns with it rather than
+   * growing a loose axis-aligned bounding box that over-flattens the terrain
+   * on both diagonals.
+   */
+  rotY?: number;
 }
 
 /**
@@ -151,9 +158,31 @@ export function distanceToSegment(x: number, z: number, a: Vec2, b: Vec2): numbe
   return Math.hypot(x - px, z - pz);
 }
 
-/** Signed inset: > 0 inside the rect, in metres from the nearest edge. */
-export function insetInRect(x: number, z: number, centre: Vec2, size: Vec2): number {
-  return Math.min(size[0] / 2 - Math.abs(x - centre[0]), size[1] / 2 - Math.abs(z - centre[1]));
+/**
+ * Signed inset: > 0 inside the rect, in metres from the nearest edge.
+ *
+ * `rotY` is the rect's own bearing, matching a placement's `rotY`. The query
+ * point is rotated into the rect's frame before the abs, so `size` always
+ * means the same thing whichever way the rect faces.
+ */
+export function insetInRect(x: number, z: number, centre: Vec2, size: Vec2, rotY = 0): number {
+  let dx = x - centre[0];
+  let dz = z - centre[1];
+  if (rotY !== 0) {
+    // Inverse of three.js's Y rotation, which sends local +X to (cos, 0, -sin).
+    const c = Math.cos(rotY);
+    const s = Math.sin(rotY);
+    [dx, dz] = [dx * c - dz * s, dx * s + dz * c];
+  }
+  return Math.min(size[0] / 2 - Math.abs(dx), size[1] / 2 - Math.abs(dz));
+}
+
+/** Rect-local offset -> world offset, the forward direction of the above. */
+export function rotateOffset(lx: number, lz: number, rotY: number): Vec2 {
+  if (rotY === 0) return [lx, lz];
+  const c = Math.cos(rotY);
+  const s = Math.sin(rotY);
+  return [lx * c + lz * s, -lx * s + lz * c];
 }
 
 /**
@@ -166,10 +195,11 @@ export function flatInset(x: number, z: number): number {
   for (const r of ROADS) {
     best = Math.max(best, r.width / 2 - distanceToSegment(x, z, r.a, r.b));
   }
-  best = Math.max(best, insetInRect(x, z, APRON.centre, APRON.size));
-  best = Math.max(best, insetInRect(x, z, INN_FORECOURT.centre, INN_FORECOURT.size));
+  for (const r of [APRON, INN_FORECOURT]) {
+    best = Math.max(best, insetInRect(x, z, r.centre, r.size, r.rotY ?? 0));
+  }
   for (const p of PLACEMENTS) {
-    best = Math.max(best, insetInRect(x, z, [p.pos[0], p.pos[2]], p.pad));
+    best = Math.max(best, insetInRect(x, z, [p.pos[0], p.pos[2]], p.pad, p.rotY));
   }
   return best;
 }

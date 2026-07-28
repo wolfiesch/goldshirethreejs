@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { coneMat, leafMat, mat } from '../gen/materials';
 import { taperedPost } from '../gen/prims';
 import { clamp, makeRng, poissonDisc, range, type Rng } from '../gen/rng';
-import { PLACEMENTS, ROADS, SPECIMEN_TREES, distanceToSegment, flatInset } from './layout';
+import { PLACEMENTS, ROADS, SPECIMEN_TREES, distanceToSegment, flatInset, rotateOffset } from './layout';
 import { groundY } from './terrain';
 
 /**
@@ -263,8 +263,13 @@ function placeBushes(rng: Rng): THREE.Matrix4[] {
   for (let guard = 0; out.length < BUSH_COUNT && guard < 40000; guard++) {
     const p = pads[Math.min(pads.length - 1, Math.floor(rng() * pads.length))];
     const a = range(rng, 0, TAU);
-    const x = p.pos[0] + Math.cos(a) * (p.pad[0] / 2 + range(rng, 0.5, 2.4));
-    const z = p.pos[2] + Math.sin(a) * (p.pad[1] / 2 + range(rng, 0.5, 2.4));
+    // The ring is laid out in the pad's own frame and then turned with it, so a
+    // building facing the oblique road keeps its bushes against its walls.
+    const lx = Math.cos(a) * (p.pad[0] / 2 + range(rng, 0.5, 2.4));
+    const lz = Math.sin(a) * (p.pad[1] / 2 + range(rng, 0.5, 2.4));
+    const [ox, oz] = rotateOffset(lx, lz, p.rotY);
+    const x = p.pos[0] + ox;
+    const z = p.pos[2] + oz;
     if (x > 96 || flatInset(x, z) > -0.2) continue;
     push(x, z);
   }

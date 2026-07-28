@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { leafMat, mat, waterMat } from '../gen/materials';
 import { clamp, fbm, makeRng, range, smoothstep, valueNoise2D } from '../gen/rng';
 import type { TickFn } from '../core/types';
-import { APRON, INN_FORECOURT, LAKE, ROADS, type RoadRect, type RoadSegment, TERRAIN_VOIDS, type Vec2, VERGE_WIDTH, flatInset } from './layout';
+import { APRON, INN_FORECOURT, LAKE, ROADS, type RoadRect, type RoadSegment, TERRAIN_VOIDS, type Vec2, VERGE_WIDTH, flatInset, rotateOffset } from './layout';
 
 /**
  * Ground, roads and Crystal Lake. Terrain is forced to exactly y = 0 under
@@ -117,6 +117,7 @@ function ribbon(a: Vec2, b: Vec2, width: number, y: number, material: THREE.Mate
 function apronMesh(rect: RoadRect, y: number, material: THREE.Material, tile: number): THREE.Mesh {
   const [cx, cz] = rect.centre;
   const [sx, sz] = rect.size;
+  const rotY = rect.rotY ?? 0;
   const shape = new THREE.Shape();
   const steps = 64;
   const r = Math.min(sx, sz) * 0.28;
@@ -127,11 +128,14 @@ function apronMesh(rect: RoadRect, y: number, material: THREE.Material, tile: nu
     const st = Math.sin(t);
     const p = 2 + (Math.min(sx, sz) / r) * 0.35;
     const k = Math.pow(Math.pow(Math.abs(ct), p) + Math.pow(Math.abs(st), p), -1 / p);
-    const ex = cx + ct * k * (sx / 2);
-    const ez = cz + st * k * (sz / 2);
-    const wobble = (edgeNoise(ex * 0.1, ez * 0.1) - 0.5) * 1.1;
-    const ox = cx + ct * k * (sx / 2 + wobble);
-    const oz = cz + st * k * (sz / 2 + wobble);
+    // The superellipse is built in the rect's own frame and rotated out to
+    // world. The edge wobble is sampled in world space either way, so the
+    // ground noise does not spin with the apron.
+    const [ex, ez] = rotateOffset(ct * k * (sx / 2), st * k * (sz / 2), rotY);
+    const wobble = (edgeNoise((cx + ex) * 0.1, (cz + ez) * 0.1) - 0.5) * 1.1;
+    const [wx, wz] = rotateOffset(ct * k * (sx / 2 + wobble), st * k * (sz / 2 + wobble), rotY);
+    const ox = cx + wx;
+    const oz = cz + wz;
     if (i === 0) shape.moveTo(ox, -oz);
     else shape.lineTo(ox, -oz);
   }
@@ -216,11 +220,20 @@ export function buildTerrain(): Terrain {
     }
     group.add(ribbon(seg.a, seg.b, seg.width, roadY(seg.surface, false), seg.surface === 'cobble' ? cobble : dirt, seg.surface === 'cobble' ? 3 : 4));
   }
-  for (const rect of [APRON, INN_FORECOURT]) {
+  /*
+   * Each apron gets its own height. Every cobble ribbon and both aprons used
+   * to sit at 0.022 and already overlapped about a metre at the junction;
+   * oblique arms turn that into large overlap lozenges, and coplanar surfaces
+   * z-fight into a flickering moire that no amount of renderOrder fixes.
+   */
+  for (const [rect, vergeY, surfaceY] of [
+    [APRON, 0.012, 0.024],
+    [INN_FORECOURT, 0.013, 0.026],
+  ] as Array<[RoadRect, number, number]>) {
     group.add(
-      apronMesh({ ...rect, size: [rect.size[0] + VERGE_WIDTH * 2, rect.size[1] + VERGE_WIDTH * 2] }, roadY('cobble', true), dirt, 4),
+      apronMesh({ ...rect, size: [rect.size[0] + VERGE_WIDTH * 2, rect.size[1] + VERGE_WIDTH * 2] }, vergeY, dirt, 4),
     );
-    group.add(apronMesh(rect, roadY('cobble', false), cobble, 3));
+    group.add(apronMesh(rect, surfaceY, cobble, 3));
   }
 
   // ---- Crystal Lake -------------------------------------------------------
