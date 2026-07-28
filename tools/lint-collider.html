@@ -1,0 +1,133 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>collider lint</title>
+<script type="module">
+  // Drop test over every surface a player can stand on.
+  //
+  // `?collider=1` draws the BVH box hierarchy, which is depth-tested and so
+  // invisible from inside any sealed room: the cellar shot came back
+  // byte-identical to the same shot without the flag. The question that flag
+  // was meant to answer is asked here instead, of the collider that ships.
+  //
+  // Every test is band coverage: fire a ray down through a footprint and
+  // require at least one collider hit inside the vertical band the floor or
+  // flight occupies. Hits above the band are furniture and beams and are
+  // reported but not failures; the failure is a sample with nothing in the
+  // band, which is a hole to fall through.
+  import * as THREE from 'three';
+  import { buildCollider } from '/src/core/collision.ts';
+  import { buildWorld } from '/src/world/world.ts';
+  import { LAYOUT } from '/src/world/buildings.ts';
+  import { ROADS, SPAWN } from '/src/world/layout.ts';
+  import { groundY } from '/src/world/terrain.ts';
+  import { CELLAR_WELL, STAIR_WELL } from '/src/build/innSpec.ts';
+
+  const out = [];
+  const say = (s) => out.push(s);
+
+  const world = buildWorld();
+  const collider = buildCollider(world.root);
+  const ray = new THREE.Raycaster();
+  const DOWN = new THREE.Vector3(0, -1, 0);
+  const origin = new THREE.Vector3();
+
+  function hitsBelow(x, y, z) {
+    origin.set(x, y, z);
+    ray.set(origin, DOWN);
+    return ray.intersectObject(collider, true).map((h) => h.point.y);
+  }
+
+  function place(id) {
+    const p = LAYOUT.find((q) => q.id === id);
+    if (!p) throw new Error(`no placement ${id}`);
+    return p;
+  }
+
+  /** Local (lx, lz) in a placement's frame -> world (x, z). */
+  function toWorld(p, lx, lz) {
+    const c = Math.cos(p.rotY);
+    const s = Math.sin(p.rotY);
+    return [p.pos[0] + lx * c + lz * s, p.pos[2] - lx * s + lz * c];
+  }
+
+  /** A deck's own stairwell is a hole on purpose; skip what the spec cut out. */
+  function inWell(well, lx, lz) {
+    return lx > well.x0 - 0.3 && lx < well.x1 + 0.3 && lz > well.z0 - 0.3 && lz < well.z1 + 0.3;
+  }
+
+  function bandTest(label, id, rect, lo, hi, step = 0.5, wells = []) {
+    const p = place(id);
+    let n = 0;
+    let holes = 0;
+    let firstHole = null;
+    let obstructed = 0;
+    for (let lx = rect[0]; lx <= rect[1] + 1e-9; lx += step) {
+      for (let lz = rect[2]; lz <= rect[3] + 1e-9; lz += step) {
+        if (wells.some((w) => inWell(w, lx, lz))) continue;
+        n++;
+        const [x, z] = toWorld(p, lx, lz);
+        const ys = hitsBelow(x, hi + 8, z);
+        if (!ys.some((y) => y >= lo && y <= hi)) {
+          holes++;
+          if (!firstHole) firstHole = [lx.toFixed(1), lz.toFixed(1), ys.length ? ys[0].toFixed(2) : 'none'];
+        }
+        if (ys.some((y) => y > hi)) obstructed++;
+      }
+    }
+    say(
+      `${holes ? 'HOLE      ' : 'ok        '} ${label.padEnd(17)} ${String(n).padStart(4)} samples, ${holes} outside [${lo}, ${hi}]` +
+        `${firstHole ? ` first at ${firstHole}` : ''}, ${obstructed} with something overhead`,
+    );
+  }
+
+  // The inn's three decks. Sampled inside the walls, so the band is the deck
+  // itself: floorG 0.5, floorU 4.3, cellarFloor -2.5.
+  bandTest('inn ground', 'inn', [-7, 7, -4, 4], 0.15, 0.85, 0.5, [CELLAR_WELL]);
+  bandTest('inn upper', 'inn', [-7, 7, -4, 4], 3.95, 4.65, 0.5, [STAIR_WELL]);
+  bandTest('inn cellar', 'inn', [-6.6, -0.4, -2.2, 2.6], -2.85, -2.15);
+
+  // Flights get the whole band they climb through, which is what catches a
+  // missing tread without needing to know the pitch.
+  bandTest('cellar stair', 'inn', [-7.2, -3.4, 1.9, 2.7], -2.85, 0.9, 0.25);
+  bandTest('roost switchback', 'roost', [-2.5, 1.5, 3.2, 4.8], -0.3, 6.3, 0.25);
+
+  // The road network: never a hole, and never far from the terrain's own
+  // answer for grade.
+  let roadHoles = 0;
+  let roadWorst = 0;
+  let roadAt = null;
+  let roadN = 0;
+  for (const r of ROADS) {
+    const len = Math.hypot(r.b[0] - r.a[0], r.b[1] - r.a[1]);
+    const steps = Math.max(8, Math.round(len / 2));
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      const x = r.a[0] + (r.b[0] - r.a[0]) * t;
+      const z = r.a[1] + (r.b[1] - r.a[1]) * t;
+      if (Math.abs(x) > 158 || Math.abs(z) > 158) continue;
+      roadN++;
+      const ys = hitsBelow(x, 40, z);
+      if (!ys.length) {
+        roadHoles++;
+        continue;
+      }
+      // First hit, not last: what you would stand on is the road ribbon, which
+      // rides 1 to 3 cm above the terrain that the last hit would report.
+      const d = Math.abs(ys[0] - groundY(x, z));
+      if (d >= roadWorst) {
+        roadWorst = d;
+        roadAt = [x.toFixed(0), z.toFixed(0), ys[0].toFixed(2)];
+      }
+    }
+  }
+  say(
+    `${roadHoles || roadWorst > 0.6 ? 'ROAD-HOLE ' : 'ok        '} ${'roads'.padEnd(17)} ${String(roadN).padStart(4)} samples, ` +
+      `${roadHoles} holes, worst ${roadWorst.toFixed(2)} m off grade at ${roadAt}`,
+  );
+
+  const spawn = hitsBelow(SPAWN[0], 30, SPAWN[2]);
+  say(`spawn surface ${spawn.length ? spawn[spawn.length - 1].toFixed(3) : 'MISSING'} against groundY ${groundY(SPAWN[0], SPAWN[2]).toFixed(3)}`);
+
+  document.title = 'done';
+  console.log('COLLIDER\n' + out.join('\n'));
+</script>
