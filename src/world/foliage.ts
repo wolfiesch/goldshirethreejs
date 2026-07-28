@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { coneMat, leafMat, mat } from '../gen/materials';
 import { taperedPost } from '../gen/prims';
 import { clamp, makeRng, poissonDisc, range, type Rng } from '../gen/rng';
-import { PLACEMENTS, ROADS, SPECIMEN_TREES, distanceToSegment, flatInset, rotateOffset } from './layout';
+import { LAKE, PLACEMENTS, ROADS, distanceToSegment, flatInset, rotateOffset } from './layout';
 import { groundY } from './terrain';
 
 /**
@@ -39,6 +39,18 @@ const CONIFER = { tierW0: 0.356, tierW1: 0.141, tierH0: 0.341, tierH1: 0.193, tr
 
 const CONIFER_SHARE = 0.12;
 const RING_TARGET = 420;
+/**
+ * Open ground: everything within `CLEARING_CORE` of the junction, plus a bubble
+ * of `CLEARING_PAD` around each building. It used to be one disc of radius 78
+ * centred on the origin, which was fine while the village was centred there
+ * too. With the inn 54 m east and the fork 56 m north, a disc leaves a bare
+ * field on one side and crowds the buildings on the other. The union below
+ * takes the shape of the village, so the forest closes in behind every roof
+ * the way the references show and the common in front of the inn stays open.
+ */
+const CLEARING_CORE = 40;
+const CLEARING_PAD = 17;
+/** Radius used for the specimen band and the poisson box, roughly the old disc. */
 const RING_INNER = 78;
 /** Beyond this radius the ring thins linearly so the far edge dissolves into
  *  fog rather than ending in a hard line. */
@@ -50,6 +62,11 @@ const SHADOW_CUTOFF = 90;
 
 const BUSH_COUNT = 260;
 const GRASS_COUNT = 1400;
+const SPECIMEN_TARGET = 26;
+
+/** East of this the ground is already dropping into the lake bed, so nothing
+ *  rooted is planted there. Tied to the lake so the two cannot desync. */
+const DRY_EDGE = LAKE.shoreStart - 4;
 
 const TAU = Math.PI * 2;
 
@@ -124,12 +141,30 @@ function onRoad(x: number, z: number): boolean {
   return false;
 }
 
-/** A tree may stand here: clear of the lake, of every road corridor, and 4 m
- *  clear of every flattened road polygon or building pad. */
-function treeAllowed(x: number, z: number): boolean {
-  if (x > 96) return false;
-  if (flatInset(x, z) > -4) return false;
+/** A tree may stand here: clear of the lake, of every road corridor, and
+ *  `clear` metres clear of every flattened road polygon or building pad. */
+function treeAllowed(x: number, z: number, clear = 4): boolean {
+  if (x > DRY_EDGE) return false;
+  if (flatInset(x, z) > -clear) return false;
   return !onRoad(x, z);
+}
+
+/**
+ * Specimen trees: the big ones standing in the open between the buildings and
+ * the treeline, so the clearing has depth rather than a wall of trunks around
+ * an empty field. Blue-noise spaced, filtered by the same rule as the forest
+ * ring with a wider berth, then thinned to a fixed count so the triangle
+ * budget does not move every time a building does.
+ */
+function placeSpecimens(rng: Rng): Array<[number, number]> {
+  const scored: Array<{ p: [number, number]; key: number }> = [];
+  for (const p of poissonDisc(rng, -RING_INNER, -RING_INNER, RING_INNER, RING_INNER, 18)) {
+    if (!inClearing(p[0], p[1])) continue;
+    if (!treeAllowed(p[0], p[1], 6)) continue;
+    scored.push({ p, key: rng() });
+  }
+  scored.sort((a, b) => b.key - a.key);
+  return scored.slice(0, SPECIMEN_TARGET).map((s) => s.p);
 }
 
 /**
@@ -137,11 +172,21 @@ function treeAllowed(x: number, z: number): boolean {
  * largest `RING_TARGET` keys. Deterministic, and the thinning weight makes the
  * far edge fade out instead of stopping dead.
  */
+/** Inside the village's open ground rather than the forest around it. */
+function inClearing(x: number, z: number): boolean {
+  if (Math.hypot(x, z) < CLEARING_CORE) return true;
+  for (const p of PLACEMENTS) {
+    if (p.pad[0] * p.pad[1] < 18) continue;
+    if (Math.hypot(x - p.pos[0], z - p.pos[2]) < CLEARING_PAD) return true;
+  }
+  return false;
+}
+
 function selectForestRing(rng: Rng, candidates: Array<[number, number]>): Array<[number, number]> {
   const scored: Array<{ p: [number, number]; key: number }> = [];
   for (const p of candidates) {
     const radius = Math.hypot(p[0], p[1]);
-    if (radius <= RING_INNER) continue;
+    if (inClearing(p[0], p[1])) continue;
     const w = radius <= THIN_START ? 1 : clamp(1 - (radius - THIN_START) / (THIN_END - THIN_START), 0, 1);
     if (w <= 0) continue;
     scored.push({ p, key: Math.pow(rng(), 1 / w) });
@@ -256,7 +301,7 @@ function placeBushes(rng: Rng): THREE.Matrix4[] {
     const r = range(rng, 60, 90);
     const x = Math.cos(a) * r;
     const z = Math.sin(a) * r;
-    if (x > 96 || flatInset(x, z) > -1.5 || onRoad(x, z)) continue;
+    if (x > DRY_EDGE || flatInset(x, z) > -1.5 || onRoad(x, z)) continue;
     push(x, z);
   }
 
@@ -270,7 +315,7 @@ function placeBushes(rng: Rng): THREE.Matrix4[] {
     const [ox, oz] = rotateOffset(lx, lz, p.rotY);
     const x = p.pos[0] + ox;
     const z = p.pos[2] + oz;
-    if (x > 96 || flatInset(x, z) > -0.2) continue;
+    if (x > DRY_EDGE || flatInset(x, z) > -0.2) continue;
     push(x, z);
   }
   return out;
@@ -308,7 +353,7 @@ export function buildFoliage(): THREE.Group {
 
   const trees: TreeInstance[] = [];
   for (const [x, z] of ring) trees.push(makeTreeInstance(rng, x, z));
-  for (const [x, z] of SPECIMEN_TREES) trees.push(makeTreeInstance(rng, x, z));
+  for (const [x, z] of placeSpecimens(rng)) trees.push(makeTreeInstance(rng, x, z));
 
   const broadNear: THREE.Matrix4[] = [];
   const broadFar: THREE.Matrix4[] = [];

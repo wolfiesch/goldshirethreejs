@@ -51,17 +51,20 @@ const CAM_PRESETS: Record<string, CamPreset> = {
   stair: { anchor: 'inn', pos: [-3.0, 1.7, 1.5], look: [6.5, 2.5, 0.0] },
   upstairs: { anchor: 'inn', pos: [6.2, 6.0, 3.0], look: [-6.5, 5.7, 2.5] },
   cellar: { anchor: 'inn', pos: [-6.8, -1.5, 0.0], look: [0.4, -1.85, 0.0] },
-  crossroads: { pos: [12.0, 2.2, 2.0], look: [-20.0, 2.0, -1.0] },
+  // Arriving from Westfall: smithy left, junction ahead, inn away to the right.
+  crossroads: { pos: [17.0, 2.5, 17.0], look: [-22.0, 3.2, -20.0] },
   // Close enough to read the arm boards; `crossroads` is the wide establishing shot.
   signpost: { anchor: 'signpost', pos: [3.6, 2.0, 3.1], look: [-0.4, 1.85, -0.3] },
   smithy: { anchor: 'smithy', pos: [8.0, 2.0, -8.0], look: [0.0, 3.5, 0.0] },
-  aerial: { pos: [-40, 60, 70], look: [6, 0, -8] },
+  aerial: { pos: [-30, 66, 64], look: [14, 0, -16] },
   // Inside the shed, past the anvil, onto the forge and its flue.
   smithyInterior: { anchor: 'smithy', pos: [3.8, 1.7, 2.2], look: [-2.6, 1.5, -0.4] },
-  eseRoad: { pos: [42.0, 2.3, 1.5], look: [4.0, 2.6, -2.0] },
-  fork: { pos: [4.0, 2.4, -58.0], look: [-4.0, 2.6, -76.0] },
-  lakeShore: { pos: [92.0, 2.4, 8.0], look: [126.0, 0.0, 12.0] },
-  nightSquare: { pos: [16.0, 2.6, 16.0], look: [-10.0, 4.0, -10.0] },
+  // On the Redridge road at 120 degrees, looking back up it into town.
+  eseRoad: { pos: [45.0, 2.3, 26.0], look: [6.0, 3.2, 1.0] },
+  fork: { pos: [3.0, 2.4, -44.0], look: [1.0, 2.8, -70.0] },
+  lakeShore: { pos: [112.0, 2.4, -50.0], look: [146.0, 0.0, -55.0] },
+  // Across the common from the junction to the lit inn.
+  nightSquare: { pos: [6.0, 2.6, 10.0], look: [42.0, 5.0, -16.0] },
 };
 
 const UP = new THREE.Vector3(0, 1, 0);

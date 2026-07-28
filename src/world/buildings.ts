@@ -33,6 +33,7 @@ const BUILDERS: Record<string, () => THREE.Group> = {
   wagon: buildWagon,
   well: buildWell,
   signpost: buildSignpost,
+  signpostFork: buildSignpost,
   mailbox: buildMailbox,
 };
 

@@ -98,6 +98,15 @@ export const INN_ROOF_ARGS = [
   INN_ROOF.flare,
 ] as const;
 
+/**
+ * Footprint of the undercroft, in inn-local metres. It lives here rather than
+ * in `innCellar.ts` because `layout.ts` derives the terrain void from it: a
+ * hole hard-coded in world space detaches from the inn the moment the inn
+ * moves, and the symptom is a grass floor inside the cellar rather than an
+ * error anyone would notice.
+ */
+export const CELLAR_ROOM = { x0: -7.4, x1: 0.6, z0: -3.0, z1: 3.4 };
+
 /** Cellar stairwell void cut through the ground-floor deck. */
 export const CELLAR_WELL = { x0: -7.4, x1: -3.2, z0: 1.6, z1: 3.0 };
 

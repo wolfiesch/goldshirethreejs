@@ -264,9 +264,14 @@ function buildReeds(): THREE.InstancedMesh {
   const q = new THREE.Quaternion();
   const scale = new THREE.Vector3();
   const p = new THREE.Vector3();
+  // The shallows: the 10 m band inland of the waterline, derived so the reeds
+  // cannot end up standing on dry ground when the lake moves.
+  const x0 = LAKE.shoreEnd - 12;
+  const z0 = LAKE.centre[1] - LAKE.size[1] / 2 + 8;
+  const z1 = LAKE.centre[1] + LAKE.size[1] / 2 - 8;
   for (let i = 0; i < 260; i++) {
-    const x = range(rng, 98, 108);
-    const z = range(rng, -62, 82);
+    const x = range(rng, x0, x0 + 10);
+    const z = range(rng, z0, z1);
     const y = groundY(x, z);
     if (y > 0.1) continue;
     const s = range(rng, 0.7, 1.5);

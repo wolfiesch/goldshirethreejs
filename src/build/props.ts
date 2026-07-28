@@ -3,7 +3,7 @@ import { registerNightLight } from '../core/daynight';
 import { mat } from '../gen/materials';
 import { barrel, box, crate, cylinder, fireEffect, sack, splitRailFence, spokedWheel, taperedPost } from '../gen/prims';
 import { jitter, makeRng, range } from '../gen/rng';
-import { BENCHES, FENCE_RUNS, TORCH_POSTS } from '../world/layout';
+import { FENCE_RUNS, TORCH_POSTS, scatterAround } from '../world/layout';
 import { groundY } from '../world/terrain';
 
 /**
@@ -264,44 +264,79 @@ export function buildSackPile(seed: number): THREE.Group {
 }
 
 /**
- * World-coordinate scatter. Every position below is a literal checked against
- * `flatInset` at authoring time: all of them sit at least 1.6 m clear of every
- * road polygon and every building pad, so nothing intersects a road surface or
- * a wall. No prop here is placed against a building, so none uses the
- * `flatInset > 0` exemption.
+ * Where each kind of clutter belongs, and how much of it there is.
+ *
+ * These were seven tables of hand-typed world coordinates, and the comment
+ * above them stated the rule they all obeyed: at least `PROP_CLEARANCE` clear
+ * of every road polygon and every building pad. Nothing enforced it. With
+ * `mergeStatic` baking transforms and the BVH swallowing the result into one
+ * mesh, a barrel standing inside a wall raises no error anywhere, and every
+ * re-typed coordinate was another chance to write one.
+ *
+ * `scatterAround` executes the rule instead. Weight comes from repetition: the
+ * inn drinks, the smithy burns wood, the stable eats hay.
  */
+type PropBuilder = (seed: number) => THREE.Object3D;
 
-const BARRELS: Array<[number, number]> = [
-  [6.4, -16.5], [7.0, -18.7], [33.5, -20.0], [33.5, -17.0], [-12.0, 20.5],
-  [-31.6, 12.9], [-32.0, 15.5], [-13.5, -27.0], [56.0, -16.0], [56.0, -13.0],
-  [34.5, 22.0], [-40.1, -7.5], [-6.5, -17.5], [10.0, -31.0],
+interface ClutterSpec {
+  build: PropBuilder;
+  count: number;
+  /** Metres beyond the pad edge, near and far. */
+  gap: [number, number];
+  pads: string[];
+}
+
+function clutter(): ClutterSpec[] {
+  return [
+    {
+      build: () => barrel(0.36, 0.86, mat('timberDark'), mat('metalDark')),
+      count: 13,
+      gap: [0.5, 2.6],
+      pads: ['inn', 'inn', 'inn', 'stable', 'smithy', 'cottageB'],
+    },
+    {
+      build: () => crate(0.7, mat('timberLight')),
+      count: 9,
+      gap: [0.5, 2.6],
+      pads: ['inn', 'stall', 'smithy', 'cottageA', 'cottageB'],
+    },
+    { build: buildSackPile, count: 6, gap: [0.5, 2.4], pads: ['inn', 'stall', 'cottageA', 'cottageB'] },
+    { build: buildHaystack, count: 5, gap: [0.8, 3.4], pads: ['stable', 'stable', 'cottageA', 'roost'] },
+    { build: buildLogPile, count: 4, gap: [0.8, 3.0], pads: ['smithy', 'smithy', 'cottageB'] },
+    { build: buildWheelbarrow, count: 3, gap: [1.0, 3.6], pads: ['smithy', 'cottageA', 'stable'] },
+    {
+      build: buildStump,
+      count: 12,
+      gap: [2.0, 9.0],
+      pads: ['inn', 'smithy', 'cottageA', 'cottageB', 'roost', 'stable', 'well'],
+    },
+  ];
+}
+
+/**
+ * The props that are composition rather than clutter, aimed by hand at a
+ * specific spot. They read as intent precisely because the scatter around them
+ * does not, and several sit inside a building pad on purpose: a barrel beside
+ * the porch steps is the one place the sampler is forbidden to put one.
+ */
+const PROP_ANCHORS: Array<{ build: PropBuilder; pos: [number, number] }> = [
+  { build: () => barrel(0.36, 0.86, mat('timberDark'), mat('metalDark')), pos: [45.4, -13.4] },
+  { build: () => barrel(0.36, 0.86, mat('timberDark'), mat('metalDark')), pos: [53.2, -13.4] },
+  { build: () => crate(0.7, mat('timberLight')), pos: [-18.5, 10.5] },
+  { build: () => crate(0.7, mat('timberLight')), pos: [-19.3, 9.0] },
+  { build: buildSackPile, pos: [-17.6, 11.6] },
+  // Fuel stacked outside the forge, where Argus can reach it.
+  { build: buildLogPile, pos: [-16.0, -24.0] },
+  { build: buildLogPile, pos: [-15.0, -30.5] },
+  { build: buildWheelbarrow, pos: [-13.0, -26.0] },
+  // Feed by the paddock gate.
+  { build: buildHaystack, pos: [31.0, -13.5] },
+  { build: buildHaystack, pos: [24.0, -33.5] },
+  { build: buildStump, pos: [3.5, 17.5] },
 ];
 
-const CRATES: Array<[number, number]> = [
-  [6.2, -20.9], [33.0, -23.0], [-12.0, 17.0], [-33.0, 9.0], [-17.5, -28.5],
-  [57.0, -19.0], [34.5, 25.0], [-6.2, -20.1], [-40.0, -10.0],
-];
-
-const SACK_PILES: Array<[number, number]> = [
-  [7.1, -23.2], [-10.3, 18.5], [-34.0, 17.0], [56.0, -10.0], [30.0, 26.0], [-40.0, -13.0],
-];
-
-const HAYSTACKS: Array<[number, number]> = [
-  [46.0, -24.0], [49.1, -20.6], [39.4, -7.3], [31.0, 10.0], [-19.0, 26.0],
-];
-
-const LOG_PILES: Array<[number, number]> = [
-  [19.9, 25.1], [-54.4, -17.6], [-31.6, 21.4], [-17.5, -31.0],
-];
-
-const WHEELBARROWS: Array<[number, number]> = [
-  [-9.5, 22.0], [24.0, 27.0], [-46.9, -17.6],
-];
-
-const STUMPS: Array<[number, number]> = [
-  [-13.5, -15.5], [11.8, -29.7], [32.9, -8.0], [-28.9, -7.2], [-35.1, 7.2], [-6.2, -23.6],
-  [42.9, 7.2], [47.0, 10.0], [-19.0, -33.0], [12.0, -38.0], [-50.1, 7.2], [60.0, -8.0],
-];
+/** Benches sit against a wall facing out, so the ring sample sets the facing. */
+const BENCH_COUNT = 3;
 
 const PROP_SEED = 0x517e5;
 
@@ -323,60 +358,30 @@ export function buildVillageProps(): THREE.Group {
     root.add(torch);
   }
 
-  for (const b of BENCHES) {
+  for (const s of scatterAround(rng, ['inn', 'inn', 'cottageA'], BENCH_COUNT, 0.3, 1.6)) {
     const bench = buildBench(nextSeed());
-    bench.position.set(b.pos[0], groundY(b.pos[0], b.pos[1]), b.pos[1]);
-    bench.rotation.y = b.rotY;
+    bench.position.set(s.pos[0], groundY(s.pos[0], s.pos[1]), s.pos[1]);
+    // The bench's back is its local -Z, so aiming local +Z outward puts its
+    // back to the wall it was sampled against.
+    bench.rotation.y = Math.atan2(s.outward[0], s.outward[1]);
     root.add(bench);
   }
 
-  for (const [x, z] of BARRELS) {
-    const b = barrel(0.36, 0.86, mat('timberDark'), mat('metalDark'));
-    b.position.set(x, groundY(x, z), z);
-    b.rotation.y = range(rng, 0, Math.PI * 2);
-    root.add(b);
+  for (const spec of clutter()) {
+    for (const s of scatterAround(rng, spec.pads, spec.count, spec.gap[0], spec.gap[1])) {
+      const prop = spec.build(nextSeed());
+      prop.position.set(s.pos[0], groundY(s.pos[0], s.pos[1]), s.pos[1]);
+      prop.rotation.y = range(rng, 0, Math.PI * 2);
+      root.add(prop);
+    }
   }
 
-  for (const [x, z] of CRATES) {
-    const c = crate(0.7, mat('timberLight'));
-    c.position.set(x, groundY(x, z), z);
-    c.rotation.y = range(rng, 0, Math.PI * 2);
-    root.add(c);
-  }
-
-  for (const [x, z] of SACK_PILES) {
-    const p = buildSackPile(nextSeed());
-    p.position.set(x, groundY(x, z), z);
-    p.rotation.y = range(rng, 0, Math.PI * 2);
-    root.add(p);
-  }
-
-  for (const [x, z] of HAYSTACKS) {
-    const h = buildHaystack(nextSeed());
-    h.position.set(x, groundY(x, z), z);
-    h.rotation.y = range(rng, 0, Math.PI * 2);
-    root.add(h);
-  }
-
-  for (const [x, z] of LOG_PILES) {
-    const l = buildLogPile(nextSeed());
-    l.position.set(x, groundY(x, z), z);
-    l.rotation.y = range(rng, 0, Math.PI * 2);
-    root.add(l);
-  }
-
-  for (const [x, z] of WHEELBARROWS) {
-    const w = buildWheelbarrow(nextSeed());
-    w.position.set(x, groundY(x, z), z);
-    w.rotation.y = range(rng, 0, Math.PI * 2);
-    root.add(w);
-  }
-
-  for (const [x, z] of STUMPS) {
-    const s = buildStump(nextSeed());
-    s.position.set(x, groundY(x, z), z);
-    s.rotation.y = range(rng, 0, Math.PI * 2);
-    root.add(s);
+  for (const anchor of PROP_ANCHORS) {
+    const [x, z] = anchor.pos;
+    const prop = anchor.build(nextSeed());
+    prop.position.set(x, groundY(x, z), z);
+    prop.rotation.y = range(rng, 0, Math.PI * 2);
+    root.add(prop);
   }
 
   return root;

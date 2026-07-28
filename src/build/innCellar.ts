@@ -4,7 +4,7 @@ import { barrel, box, crate, cylinder } from '../gen/prims';
 import { makeRng, range } from '../gen/rng';
 import { cobweb, sackPile, wineRack } from './furniture';
 import { railing, straightStair } from './innParts';
-import { CELLAR_WELL, INN } from './innSpec';
+import { CELLAR_ROOM as ROOM, CELLAR_WELL, INN } from './innSpec';
 
 /**
  * Undercroft. The whole flight is left open to the room above: a small hatch
@@ -15,7 +15,6 @@ import { CELLAR_WELL, INN } from './innSpec';
 
 const FLOOR = INN.cellarFloor;
 const SOFFIT = INN.cellarSoffit;
-const ROOM = { x0: -7.4, x1: 0.6, z0: -3.0, z1: 3.4 };
 const WALL_T = 0.5;
 
 export function buildInnCellar(): THREE.Group {
