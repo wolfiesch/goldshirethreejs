@@ -1,0 +1,202 @@
+import * as THREE from 'three';
+import { clamp, lerp, smoothstep } from '../gen/rng';
+
+/**
+ * Single owner of world time. Sky colour, fog, sun/hemisphere lighting, every
+ * lit window and every torch read from here. Nothing animates its own emissive.
+ */
+
+export interface NightEmissive {
+  material: THREE.MeshLambertMaterial;
+  day: number;
+  night: number;
+}
+
+export interface NightLight {
+  light: THREE.PointLight;
+  night: number;
+}
+
+export interface SkyTarget {
+  setColors(zenith: THREE.Color, horizon: THREE.Color): void;
+  setSun(direction: THREE.Vector3, elevation: number): void;
+}
+
+interface Keyframe {
+  t: number;
+  zenith: number;
+  horizon: number;
+  fog: number;
+  sunColor: number;
+  sunIntensity: number;
+  hemiSky: number;
+  hemiGround: number;
+  hemiIntensity: number;
+  fogDensity: number;
+}
+
+/** Palette keyframes; `t` in hours. Interpolated cyclically, 20 -> 24 wraps to the t=0 row. */
+const KEYS: Keyframe[] = [
+  { t: 0, zenith: 0x0a1020, horizon: 0x1b2740, fog: 0x141d30, sunColor: 0x8fa8d0, sunIntensity: 0.12, hemiSky: 0x35486a, hemiGround: 0x1a2018, hemiIntensity: 0.4, fogDensity: 0.011 },
+  { t: 5, zenith: 0x2c3f66, horizon: 0xc98a5e, fog: 0x8a7a72, sunColor: 0xe0a070, sunIntensity: 0.55, hemiSky: 0x6b7ea0, hemiGround: 0x2c2a1e, hemiIntensity: 0.55, fogDensity: 0.009 },
+  { t: 8, zenith: 0x5f92cd, horizon: 0xbcd3e6, fog: 0xbcd3e6, sunColor: 0xfff2d8, sunIntensity: 1.3, hemiSky: 0xbdd2e4, hemiGround: 0x7d7048, hemiIntensity: 0.7, fogDensity: 0.0055 },
+  { t: 13, zenith: 0x3f7fd0, horizon: 0xc8dcef, fog: 0xc8dcef, sunColor: 0xfff6e2, sunIntensity: 1.5, hemiSky: 0xc3d6e4, hemiGround: 0x8f7f57, hemiIntensity: 0.75, fogDensity: 0.0042 },
+  { t: 18, zenith: 0x4a6fae, horizon: 0xe2a367, fog: 0xc19a80, sunColor: 0xffc487, sunIntensity: 0.95, hemiSky: 0x8ea8c8, hemiGround: 0x4a4028, hemiIntensity: 0.65, fogDensity: 0.0068 },
+  { t: 20, zenith: 0x1d2b4c, horizon: 0x8a5a52, fog: 0x4a4050, sunColor: 0xa88a90, sunIntensity: 0.3, hemiSky: 0x53627e, hemiGround: 0x2a2820, hemiIntensity: 0.48, fogDensity: 0.0095 },
+];
+
+const emissives: NightEmissive[] = [];
+const nightLights: NightLight[] = [];
+
+let time = 13;
+let sceneRef: THREE.Scene | null = null;
+let sunRef: THREE.DirectionalLight | null = null;
+let hemiRef: THREE.HemisphereLight | null = null;
+let skyRef: SkyTarget | null = null;
+
+const sunTarget = new THREE.Object3D();
+const sunDirection = new THREE.Vector3(0, 1, 0);
+const followPoint = new THREE.Vector3();
+
+const zenithColor = new THREE.Color();
+const horizonColor = new THREE.Color();
+const fogColor = new THREE.Color();
+const scratchA = new THREE.Color();
+const scratchB = new THREE.Color();
+
+let sunElevation = 1;
+let nightFactor = 0;
+
+export function setTime(hours: number): void {
+  time = ((hours % 24) + 24) % 24;
+}
+
+export function getTime(): number {
+  return time;
+}
+
+export function getNightFactor(): number {
+  return nightFactor;
+}
+
+export function getSunDirection(): THREE.Vector3 {
+  return sunDirection;
+}
+
+export function registerNightEmissive(material: THREE.MeshLambertMaterial, day: number, night: number): void {
+  emissives.push({ material, day, night });
+}
+
+/** Outdoor torches: intensity scales with darkness so they cost nothing at noon. */
+export function registerNightLight(light: THREE.PointLight, night: number): void {
+  nightLights.push({ light, night });
+}
+
+/** The point the shadow frustum tracks; main.ts feeds the player position here. */
+export function setShadowFollowPoint(p: THREE.Vector3): void {
+  followPoint.copy(p);
+}
+
+export function initDayNight(
+  scene: THREE.Scene,
+  sun: THREE.DirectionalLight,
+  hemi: THREE.HemisphereLight,
+  sky?: SkyTarget,
+): void {
+  sceneRef = scene;
+  sunRef = sun;
+  hemiRef = hemi;
+  skyRef = sky ?? null;
+
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  const cam = sun.shadow.camera;
+  cam.left = -55;
+  cam.right = 55;
+  cam.top = 55;
+  cam.bottom = -55;
+  cam.near = 1;
+  cam.far = 260;
+  cam.updateProjectionMatrix();
+  sun.shadow.bias = -0.0006;
+  sun.shadow.normalBias = 0.03;
+  sun.target = sunTarget;
+  scene.add(sunTarget);
+}
+
+function sampleKeys(t: number): { a: Keyframe; b: Keyframe; f: number } {
+  const first = KEYS[0];
+  const last = KEYS[KEYS.length - 1];
+  if (t < first.t) {
+    // wrap segment: last key (20h) -> first key (24h == 0h)
+    const span = 24 - last.t + first.t;
+    return { a: last, b: first, f: (t + 24 - last.t) / span };
+  }
+  for (let i = 0; i < KEYS.length - 1; i++) {
+    const a = KEYS[i];
+    const b = KEYS[i + 1];
+    if (t >= a.t && t <= b.t) return { a, b, f: (t - a.t) / (b.t - a.t) };
+  }
+  const span = 24 - last.t + first.t;
+  return { a: last, b: first, f: (t - last.t) / span };
+}
+
+/** Auto-advance runs at one in-game hour per 20 real seconds. */
+export function updateDayNight(dt: number, autoAdvance: boolean): void {
+  if (autoAdvance) setTime(time + dt / 20);
+
+  const { a, b, f } = sampleKeys(time);
+
+  const hourAngle = ((time - 6) / 24) * Math.PI * 2;
+  // Peak elevation is capped at ~55 degrees. A true overhead noon leaves every
+  // vertical facade lit only by the blue hemisphere, which reads cold and grey;
+  // a lower arc puts warm sun on the walls and lengthens the shadows.
+  const sinEl = Math.sin(hourAngle) * 0.82;
+  sunElevation = sinEl;
+  const el = Math.asin(clamp(sinEl, -1, 1));
+  const az = ((time - 6) / 12) * Math.PI;
+  const cosEl = Math.cos(el);
+  sunDirection.set(Math.cos(az) * cosEl, sinEl, Math.sin(az) * cosEl).normalize();
+
+  nightFactor = smoothstep(0.15, -0.05, sunElevation);
+
+  zenithColor.lerpColors(scratchA.setHex(a.zenith, THREE.SRGBColorSpace), scratchB.setHex(b.zenith, THREE.SRGBColorSpace), f);
+  horizonColor.lerpColors(scratchA.setHex(a.horizon, THREE.SRGBColorSpace), scratchB.setHex(b.horizon, THREE.SRGBColorSpace), f);
+  fogColor.lerpColors(scratchA.setHex(a.fog, THREE.SRGBColorSpace), scratchB.setHex(b.fog, THREE.SRGBColorSpace), f);
+
+  if (sceneRef?.fog instanceof THREE.FogExp2) {
+    sceneRef.fog.color.copy(fogColor);
+    sceneRef.fog.density = lerp(a.fogDensity, b.fogDensity, f);
+  }
+  if (sceneRef) sceneRef.background = fogColor;
+
+  if (sunRef) {
+    const dayFactor = smoothstep(-0.12, 0.06, sunElevation);
+    sunRef.color.lerpColors(scratchA.setHex(a.sunColor, THREE.SRGBColorSpace), scratchB.setHex(b.sunColor, THREE.SRGBColorSpace), f);
+    // Below the horizon the same light becomes the moon: cast from the
+    // opposite bearing at a low, cool intensity so night keeps its shadows
+    // instead of collapsing into flat hemisphere ambient.
+    const moonFactor = 1 - dayFactor;
+    sunRef.intensity = lerp(a.sunIntensity, b.sunIntensity, f) * dayFactor + 0.3 * moonFactor;
+    sunTarget.position.copy(followPoint);
+    sunTarget.updateMatrixWorld();
+    const bearing = sunElevation >= 0 ? 1 : -1;
+    sunRef.position.copy(followPoint).addScaledVector(sunDirection, 120 * bearing);
+    sunRef.castShadow = sunRef.intensity > 0.02;
+  }
+
+  if (hemiRef) {
+    hemiRef.color.lerpColors(scratchA.setHex(a.hemiSky, THREE.SRGBColorSpace), scratchB.setHex(b.hemiSky, THREE.SRGBColorSpace), f);
+    hemiRef.groundColor.lerpColors(scratchA.setHex(a.hemiGround, THREE.SRGBColorSpace), scratchB.setHex(b.hemiGround, THREE.SRGBColorSpace), f);
+    hemiRef.intensity = lerp(a.hemiIntensity, b.hemiIntensity, f);
+  }
+
+  skyRef?.setColors(zenithColor, horizonColor);
+  skyRef?.setSun(sunDirection, sunElevation);
+
+  for (const e of emissives) e.material.emissiveIntensity = lerp(e.day, e.night, nightFactor);
+  for (const l of nightLights) {
+    l.light.intensity = l.night * nightFactor;
+    l.light.visible = l.light.intensity > 0.01;
+  }
+}
