@@ -35,14 +35,25 @@ interface Keyframe {
   fogDensity: number;
 }
 
-/** Palette keyframes; `t` in hours. Interpolated cyclically, 20 -> 24 wraps to the t=0 row. */
+/**
+ * Palette keyframes; `t` in hours. Interpolated cyclically, 20 -> 24 wraps to
+ * the t=0 row.
+ *
+ * Elwynn is a closed-canopy forest, so daylight arrives filtered rather than
+ * straight off an open sky: the hemisphere is green, the ground bounce is warm
+ * olive off grass and leaf litter, and the distance haze is green-grey. A pure
+ * sky-blue hemisphere and blue fog read as open moorland, which is the single
+ * largest reason the clearing looked like the wrong continent.
+ *
+ * The zeniths stay blue. What sky you do see through the canopy is still sky.
+ */
 const KEYS: Keyframe[] = [
-  { t: 0, zenith: 0x0a1020, horizon: 0x1b2740, fog: 0x141d30, sunColor: 0x8fa8d0, sunIntensity: 0.12, hemiSky: 0x35486a, hemiGround: 0x1a2018, hemiIntensity: 0.4, fogDensity: 0.011 },
-  { t: 5, zenith: 0x2c3f66, horizon: 0xc98a5e, fog: 0x8a7a72, sunColor: 0xe0a070, sunIntensity: 0.55, hemiSky: 0x6b7ea0, hemiGround: 0x2c2a1e, hemiIntensity: 0.55, fogDensity: 0.009 },
-  { t: 8, zenith: 0x5f92cd, horizon: 0xbcd3e6, fog: 0xbcd3e6, sunColor: 0xfff2d8, sunIntensity: 1.3, hemiSky: 0xbdd2e4, hemiGround: 0x7d7048, hemiIntensity: 0.7, fogDensity: 0.0055 },
-  { t: 13, zenith: 0x3f7fd0, horizon: 0xc8dcef, fog: 0xc8dcef, sunColor: 0xfff6e2, sunIntensity: 1.5, hemiSky: 0xc3d6e4, hemiGround: 0x8f7f57, hemiIntensity: 0.75, fogDensity: 0.0042 },
-  { t: 18, zenith: 0x4a6fae, horizon: 0xe2a367, fog: 0xc19a80, sunColor: 0xffc487, sunIntensity: 0.95, hemiSky: 0x8ea8c8, hemiGround: 0x4a4028, hemiIntensity: 0.65, fogDensity: 0.0068 },
-  { t: 20, zenith: 0x1d2b4c, horizon: 0x8a5a52, fog: 0x4a4050, sunColor: 0xa88a90, sunIntensity: 0.3, hemiSky: 0x53627e, hemiGround: 0x2a2820, hemiIntensity: 0.48, fogDensity: 0.0095 },
+  { t: 0, zenith: 0x0a1020, horizon: 0x1b2740, fog: 0x121c26, sunColor: 0x8fa8d0, sunIntensity: 0.12, hemiSky: 0x2e4a5e, hemiGround: 0x1c2216, hemiIntensity: 0.42, fogDensity: 0.011 },
+  { t: 5, zenith: 0x2c3f66, horizon: 0xc98a5e, fog: 0x7d7a63, sunColor: 0xe0a070, sunIntensity: 0.58, hemiSky: 0x66836e, hemiGround: 0x2e2c1c, hemiIntensity: 0.6, fogDensity: 0.009 },
+  { t: 8, zenith: 0x5f92cd, horizon: 0xbcd3e6, fog: 0xb2c7a8, sunColor: 0xfff2d8, sunIntensity: 1.4, hemiSky: 0xb6cfa6, hemiGround: 0x7c7844, hemiIntensity: 0.83, fogDensity: 0.0055 },
+  { t: 13, zenith: 0x3f7fd0, horizon: 0xc6d9bb, fog: 0xbdd2ae, sunColor: 0xfff4d4, sunIntensity: 1.6, hemiSky: 0xbcd6a8, hemiGround: 0x8a8248, hemiIntensity: 0.88, fogDensity: 0.0042 },
+  { t: 18, zenith: 0x4a6fae, horizon: 0xe2a367, fog: 0xb59a72, sunColor: 0xffc487, sunIntensity: 1.0, hemiSky: 0x8ba888, hemiGround: 0x4c4526, hemiIntensity: 0.72, fogDensity: 0.0068 },
+  { t: 20, zenith: 0x1d2b4c, horizon: 0x8a5a52, fog: 0x424a44, sunColor: 0xa88a90, sunIntensity: 0.32, hemiSky: 0x4f6a63, hemiGround: 0x2a2820, hemiIntensity: 0.52, fogDensity: 0.0095 },
 ];
 
 const emissives: NightEmissive[] = [];
