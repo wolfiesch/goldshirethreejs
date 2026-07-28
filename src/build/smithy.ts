@@ -188,6 +188,93 @@ function flueHood(): THREE.Group {
   return g;
 }
 
+/**
+ * The Alliance pennant that stands in front of the forge: crenellated top,
+ * pointed tail, gold gryphon on crimson.
+ *
+ * Built as a vertex grid rather than as a plane with an alpha-cut texture.
+ * The silhouette is the whole point of the thing, and an alpha-tested material
+ * would be a second material instance that `mergeStatic` cannot bucket with
+ * anything else. The grid also gives somewhere to put the hang of the cloth.
+ */
+function bannerCloth(w: number, h: number): THREE.Mesh {
+  const COLS = 14;
+  const ROWS = 16;
+  const merlon = h * 0.1;
+  const point = h * 0.22;
+
+  // Three merlons with two crenels between them, then a centre-pointed tail.
+  const topAt = (u: number): number => (u < 0.2 || (u > 0.4 && u < 0.6) || u > 0.8 ? h : h - merlon);
+  const bottomAt = (u: number): number => -point * (1 - Math.abs(2 * u - 1));
+
+  const pos: number[] = [];
+  const uvs: number[] = [];
+  const yMin = -point;
+  const span = h - yMin;
+  for (let r = 0; r <= ROWS; r++) {
+    for (let c = 0; c <= COLS; c++) {
+      const u = c / COLS;
+      const t = r / ROWS;
+      const y = topAt(u) + (bottomAt(u) - topAt(u)) * t;
+      // A shallow standing wave down the cloth, deepening toward the tail.
+      const z = Math.sin(u * Math.PI * 2.4) * 0.045 * (0.35 + t);
+      pos.push((u - 0.5) * w, y, z);
+      uvs.push(u, (y - yMin) / span);
+    }
+  }
+  const idx: number[] = [];
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const a = r * (COLS + 1) + c;
+      idx.push(a, a + COLS + 1, a + 1, a + 1, a + COLS + 1, a + COLS + 2);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+
+  const cloth = new THREE.Mesh(geo, mat('banner', 1, 1, THREE.DoubleSide));
+  cloth.castShadow = true;
+  cloth.receiveShadow = false;
+  cloth.userData.collide = false;
+  return cloth;
+}
+
+/** Pennant, crossbar and pole. Local origin at the foot of the pole. */
+function allianceBanner(): THREE.Group {
+  const g = new THREE.Group();
+  const timber = mat('timberDark');
+  const iron = mat('metalDark');
+
+  const poleH = 4.6;
+  const armLen = 1.5;
+  const armY = 4.15;
+  g.add(box(0.17, poleH, 0.17, timber, { pos: [0, poleH / 2, 0], uvScale: 1.2 }));
+  g.add(box(0.24, 0.16, 0.24, timber, { pos: [0, poleH + 0.08, 0], uvScale: 0.3 }));
+  g.add(box(armLen, 0.12, 0.12, timber, { pos: [armLen / 2, armY, 0], uvScale: 0.6 }));
+  g.add(box(0.14, 0.14, 0.16, iron, { pos: [armLen, armY, 0], uvScale: 0.2 }));
+
+  // Diagonal strut, or the arm reads as a cantilever with nothing holding it.
+  const strut = box(0.9, 0.09, 0.09, timber, { pos: [0.42, armY - 0.42, 0], uvScale: 0.5 });
+  strut.rotation.z = Math.PI / 4;
+  g.add(strut);
+
+  const w = 1.45;
+  const h = 2.45;
+  const cloth = bannerCloth(w, h);
+  cloth.position.set(armLen * 0.55, armY - 0.08 - h, 0.02);
+  g.add(cloth);
+  // Rings the cloth hangs from.
+  for (let i = 0; i < 3; i++) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.014, 4, 8), iron);
+    ring.position.set(armLen * 0.55 + (i - 1) * (w * 0.4), armY - 0.06, 0.02);
+    g.add(ring);
+  }
+  return g;
+}
+
 function anvil(): THREE.Group {
   const g = new THREE.Group();
   const iron = mat('metalDark');
@@ -423,6 +510,14 @@ export function buildSmithy(): THREE.Group {
   const f = forge();
   f.position.set(FORGE_X, 0, FORGE_Z);
   g.add(f);
+
+  // Off the south-east corner, clear of the 0.9 m eave overhang and square to
+  // anyone arriving from the junction: that approach is the only view the
+  // banner exists to serve, and the cloth is edge-on from anywhere else.
+  const banner = allianceBanner();
+  banner.position.set(6.2, 0, 6.3);
+  banner.rotation.y = 0.71;
+  g.add(banner);
 
   const a = anvil();
   a.position.set(0.7, 0, -1.7);

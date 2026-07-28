@@ -1,12 +1,15 @@
 import type * as THREE from 'three';
 import { buildCottage } from '../build/cottage';
+import { buildHitchingRail } from '../build/horses';
 import { buildInn } from '../build/inn';
 import { buildRoost } from '../build/roost';
 import { buildSmithy } from '../build/smithy';
 import { buildStable } from '../build/stable';
 import {
+  buildAwning,
   buildMailbox,
   buildMarketStall,
+  buildNoticeBoard,
   buildSignpost,
   buildWagon,
   buildWell,
@@ -31,10 +34,13 @@ const BUILDERS: Record<string, () => THREE.Group> = {
   roost: buildRoost,
   stall: buildMarketStall,
   wagon: buildWagon,
+  awning: buildAwning,
   well: buildWell,
   signpost: buildSignpost,
   signpostFork: buildSignpost,
+  noticeBoard: buildNoticeBoard,
   mailbox: buildMailbox,
+  hitch: buildHitchingRail,
 };
 
 export const LAYOUT: Placement[] = PLACEMENTS.map((spec) => {

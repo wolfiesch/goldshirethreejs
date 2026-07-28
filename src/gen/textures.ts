@@ -35,7 +35,9 @@ export type TexKey =
   | 'flameCard'
   | 'cobwebNet'
   | 'smoke'
-  | 'parchment';
+  | 'parchment'
+  | 'banner'
+  | 'hide';
 
 const SIZE = 512;
 
@@ -934,6 +936,110 @@ const GENERATORS: Record<TexKey, (s: Surface, rng: Rng, noise: Noise2D) => void>
     ctx.globalAlpha = 1;
   },
 
+  /**
+   * The Alliance pennant that hangs off the smithy: a gold gryphon rampant on
+   * a crimson field inside a cream border. The beast is painted as one filled
+   * silhouette rather than as anatomy. At a metre and a bit of cloth seen from
+   * across the road, "gold animal on red" is the whole of what registers, and
+   * a careful gryphon and a careless one look identical from there.
+   */
+  banner(s, rng, noise) {
+    const { ctx } = s;
+    fill(ctx, '#8e2026');
+    mottle(ctx, noise, 6, 0.13);
+    ctx.strokeStyle = '#d8c79a';
+    ctx.lineWidth = 13;
+    ctx.strokeRect(26, 26, SIZE - 52, SIZE - 52);
+
+    ctx.fillStyle = '#e6c46b';
+    ctx.strokeStyle = '#a8813a';
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    // Wing, raised behind the shoulder.
+    ctx.moveTo(292, 196);
+    ctx.quadraticCurveTo(372, 116, 396, 168);
+    ctx.quadraticCurveTo(374, 186, 386, 214);
+    ctx.quadraticCurveTo(352, 220, 356, 250);
+    ctx.quadraticCurveTo(322, 250, 320, 282);
+    ctx.quadraticCurveTo(296, 262, 292, 196);
+    // Body, chest low-left and rump high-right.
+    ctx.moveTo(212, 268);
+    ctx.quadraticCurveTo(238, 202, 306, 214);
+    ctx.quadraticCurveTo(348, 246, 336, 318);
+    ctx.quadraticCurveTo(276, 342, 226, 314);
+    ctx.quadraticCurveTo(204, 296, 212, 268);
+    // Neck and eagle head, beak to dexter.
+    ctx.moveTo(228, 232);
+    ctx.quadraticCurveTo(196, 190, 190, 150);
+    ctx.quadraticCurveTo(196, 122, 224, 128);
+    ctx.quadraticCurveTo(238, 134, 236, 152);
+    ctx.lineTo(184, 168);
+    ctx.lineTo(152, 178);
+    ctx.lineTo(186, 186);
+    ctx.quadraticCurveTo(214, 206, 252, 230);
+    ctx.closePath();
+    // Raised foreleg with claw.
+    ctx.moveTo(216, 250);
+    ctx.quadraticCurveTo(178, 234, 150, 244);
+    ctx.lineTo(138, 236);
+    ctx.lineTo(152, 232);
+    ctx.lineTo(140, 222);
+    ctx.lineTo(156, 226);
+    ctx.quadraticCurveTo(186, 208, 224, 224);
+    ctx.closePath();
+    // Standing hind leg and haunch.
+    ctx.moveTo(300, 306);
+    ctx.quadraticCurveTo(322, 348, 310, 392);
+    ctx.lineTo(340, 400);
+    ctx.lineTo(336, 412);
+    ctx.lineTo(286, 408);
+    ctx.quadraticCurveTo(282, 350, 274, 312);
+    ctx.closePath();
+    // Trailing hind leg.
+    ctx.moveTo(238, 312);
+    ctx.quadraticCurveTo(232, 356, 214, 384);
+    ctx.lineTo(238, 392);
+    ctx.lineTo(232, 402);
+    ctx.lineTo(190, 392);
+    ctx.quadraticCurveTo(206, 350, 210, 306);
+    ctx.closePath();
+    // Lion tail, curled up over the rump.
+    ctx.moveTo(334, 300);
+    ctx.quadraticCurveTo(392, 300, 396, 356);
+    ctx.quadraticCurveTo(384, 372, 372, 356);
+    ctx.quadraticCurveTo(378, 322, 336, 322);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Weave and hanging folds, so the cloth is not a flat decal.
+    ctx.globalAlpha = 0.1;
+    for (let i = 0; i < 200; i++) {
+      ctx.fillStyle = rng() < 0.5 ? '#000' : '#fff';
+      ctx.fillRect(rng() * SIZE, rng() * SIZE, range(rng, 3, 20), 1.4);
+    }
+    ctx.globalAlpha = 0.13;
+    ctx.fillStyle = '#3d0d10';
+    for (let i = 0; i < 5; i++) {
+      const x = range(rng, 40, SIZE - 70);
+      ctx.fillRect(x, 0, range(rng, 8, 22), SIZE);
+    }
+    ctx.globalAlpha = 1;
+  },
+
+  /** Horse hide: brown, short-haired, faintly dappled. */
+  hide(s, rng, noise) {
+    const { ctx } = s;
+    fill(ctx, '#6d4728');
+    mottle(ctx, noise, 4, 0.16);
+    ctx.globalAlpha = 0.14;
+    for (let i = 0; i < 900; i++) {
+      ctx.fillStyle = rng() < 0.5 ? '#3a2312' : '#9b6c3f';
+      ctx.fillRect(rng() * SIZE, rng() * SIZE, range(rng, 2, 7), 1.3);
+    }
+    ctx.globalAlpha = 1;
+  },
+
   /** A dim Elwynn landscape, enough to stop framed pictures reading as blanks. */
   painting(s, rng, noise) {
     const { ctx } = s;
@@ -1082,6 +1188,8 @@ const TEX_SEED: Record<TexKey, number> = {
   cobwebNet: 1028,
   smoke: 1024,
   parchment: 1025,
+  banner: 1029,
+  hide: 1030,
   painting: 1026,
 };
 

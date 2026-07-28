@@ -62,10 +62,19 @@ export const PLACEMENTS: PlacementSpec[] = [
   { id: 'roost', pos: [18.0, 0, -48.0], rotY: 0, pad: [9, 9] },
   // Remy's pitch, just off the south verge.
   { id: 'stall', pos: [-4.8, 0, 9.3], rotY: -0.35, pad: [6, 5] },
-  // Tharynn Bouden's cart.
+  // Tharynn Bouden's cart, and the canvas shading the goods stacked beside it.
   { id: 'wagon', pos: [-15.9, 0, 8.2], rotY: 1.1, pad: [6, 3] },
+  // Both of these are built facing local +Z, so a half turn is what points the
+  // open front and the board face back at the road rather than into the trees.
+  { id: 'awning', pos: [-21.5, 0, 11.5], rotY: Math.PI + 0.3, pad: [3.4, 3.2] },
   { id: 'well', pos: [-41.0, 0, -14.0], rotY: 0, pad: [4, 4] },
   { id: 'signpost', pos: [1.0, 0, 13.1], rotY: 0, pad: [1, 1] },
+  // The village notice board, on the dirt verge south of the junction where
+  // the signpost's own arms do not hide it.
+  { id: 'noticeBoard', pos: [-9.0, 0, 14.6], rotY: Math.PI - 0.22, pad: [2.6, 1.6] },
+  // Hitching rail along the inn's forecourt, horses standing broadside to the
+  // road. Its pad sits on the paving on purpose, like the stall and the wagon.
+  { id: 'hitch', pos: [56.5, 0, -8.6], rotY: Math.PI / 2, pad: [4, 3] },
   // Second board where the north road splits for Stormwind and Northshire.
   { id: 'signpostFork', pos: [11.0, 0, -53.0], rotY: -0.25, pad: [1, 1] },
   { id: 'mailbox', pos: [22.2, 0, -31.0], rotY: -0.3, pad: [1, 1] },

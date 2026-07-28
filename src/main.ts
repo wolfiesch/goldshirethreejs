@@ -68,6 +68,11 @@ const CAM_PRESETS: Record<string, CamPreset> = {
   nightSquare: { pos: [6.0, 2.6, 10.0], look: [42.0, 5.0, -16.0] },
   // From the north bank, straight across: nothing roots within 3 m of water.
   pond: { pos: [-80.5, 2.6, -57.0], look: [-56.0, -0.5, -57.0] },
+  // The four Stage 8 landmarks, each square to the face it is meant to show.
+  banner: { anchor: 'smithy', pos: [12.5, 2.6, 14.0], look: [6.5, 3.4, 5.3] },
+  awning: { anchor: 'awning', pos: [0.0, 1.9, 6.2], look: [0.0, 1.6, 0.0] },
+  noticeBoard: { anchor: 'noticeBoard', pos: [0.4, 1.8, 4.4], look: [0.0, 1.9, 0.0] },
+  hitch: { anchor: 'hitch', pos: [-5.6, 1.9, -6.2], look: [0.6, 1.5, -1.9] },
 };
 
 const UP = new THREE.Vector3(0, 1, 0);

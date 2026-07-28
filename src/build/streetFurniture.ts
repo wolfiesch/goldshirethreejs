@@ -5,9 +5,9 @@ import { makeRng, range } from '../gen/rng';
 import { textTexture } from '../gen/textures';
 
 /**
- * Crossroads dressing: market stall, wagon, well, signpost and the Alliance
- * mailbox. Each returns a group centred on its own footprint with ground at
- * y = 0; placement lives in `src/world/layout.ts`.
+ * Crossroads dressing: market stall, wagon, awning, notice board, well,
+ * signpost and the Alliance mailbox. Each returns a group centred on its own
+ * footprint with ground at y = 0; placement lives in `src/world/layout.ts`.
  */
 
 /**
@@ -160,6 +160,159 @@ export function buildWagon(): THREE.Group {
     g.add(c);
   }
   return g;
+}
+
+/**
+ * The traders' shade beside Tharynn's cart: four thin poles, a rope across the
+ * front and a sheet of red canvas slung over it. The reference has it standing
+ * free on the verge rather than fixed to the wagon, front edge a good half
+ * metre higher than the back so the rain runs off away from the goods.
+ */
+export function buildAwning(): THREE.Group {
+  const g = new THREE.Group();
+  g.name = 'awning';
+  const timber = mat('timberDark');
+  const frontH = 2.35;
+  const backH = 1.7;
+  const w = 2.9;
+  const d = 2.5;
+
+  for (const sx of [-1, 1]) {
+    const front = taperedPost(frontH, 0.075, 0.055, 6, timber);
+    front.position.set((sx * w) / 2, 0, d / 2);
+    front.rotation.z = -sx * 0.025;
+    g.add(front);
+    const back = taperedPost(backH, 0.07, 0.05, 6, timber);
+    back.position.set((sx * w) / 2, 0, -d / 2);
+    g.add(back);
+  }
+  g.add(cylinder(0.016, w, 4, mat('linen'), { pos: [0, frontH - 0.02, d / 2], rot: [0, 0, Math.PI / 2] }));
+
+  const canvas = saggedCloth(w + 0.5, d + 0.45, 0.45, mat('clothRed', 1, 1, THREE.DoubleSide));
+  canvas.position.y = (frontH + backH) / 2 + 0.03;
+  // Positive X rotation would drop the +Z edge; the front is the high side.
+  canvas.rotation.x = -Math.atan2(frontH - backH, d);
+  g.add(canvas);
+  return g;
+}
+
+/**
+ * Remaps a geometry's UVs onto its own bounding box in XY, then tiles that
+ * mapping `tile` times. Without the remap an extruded outline inherits shape
+ * coordinates and the pinned notices come out a metre across; the extruded rim
+ * inherits the mapping too, but it is 10 cm deep and never read.
+ */
+function faceMapUV(geo: THREE.BufferGeometry, w: number, h: number, y0: number, tile: number): void {
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  const uv = geo.attributes.uv as THREE.BufferAttribute;
+  for (let i = 0; i < uv.count; i++) {
+    uv.setXY(i, (pos.getX(i) / w + 0.5) * tile, ((pos.getY(i) - y0) / h) * tile);
+  }
+  uv.needsUpdate = true;
+}
+
+/**
+ * The village notice board: a peaked hexagonal panel on two heavy posts, with
+ * a shingled cap and a timber X across the face. Wider than it is tall and
+ * planted at head height, which is what makes it read as a board rather than
+ * as a small shed from across the junction.
+ */
+export function buildNoticeBoard(): THREE.Group {
+  const g = new THREE.Group();
+  g.name = 'noticeBoard';
+  const light = mat('timberLight');
+  const dark = mat('timberDark');
+
+  // Posts stop inside the panel, so the board is what the eye ends on.
+  const postH = 2.45;
+  for (const sx of [-1, 1]) {
+    const post = box(0.17, postH, 0.17, dark, { pos: [sx * 0.78, postH / 2, -0.24], uvScale: 0.9 });
+    post.rotation.z = -sx * 0.02;
+    g.add(post);
+    g.add(box(0.23, 0.1, 0.23, dark, { pos: [sx * 0.78, postH + 0.05, -0.24], uvScale: 0.3 }));
+  }
+
+  const halfW = 1.12;
+  const bodyTop = 1.02;
+  const apex = 1.46;
+  const baseY = 1.12;
+  const outline: Array<[number, number]> = [
+    [-halfW, 0.32],
+    [-0.58, 0],
+    [0.58, 0],
+    [halfW, 0.32],
+    [halfW, bodyTop],
+    [0, apex],
+    [-halfW, bodyTop],
+  ];
+
+  // Frame behind, face in front, meeting flush at z = -0.06: the 10 cm reveal
+  // around the edge is the whole reason the outline reads as a hexagon rather
+  // than as a flat decal.
+  const frame = hexPanel(outline, 0.1, 0.16, dark);
+  frame.position.set(0, baseY, -0.14);
+  g.add(frame);
+  const face = hexPanel(outline, 0, 0.1, mat('noticeBoard'), 2);
+  face.position.set(0, baseY, -0.01);
+  g.add(face);
+
+  // Timber X across the face, plus a rail along the foot of it.
+  for (const s of [-1, 1]) {
+    const brace = box(2.05, 0.11, 0.06, light, { pos: [0, baseY + 0.73, 0.07], uvScale: 0.6 });
+    brace.rotation.z = s * 0.52;
+    g.add(brace);
+  }
+  g.add(box(halfW * 2 + 0.1, 0.12, 0.06, light, { pos: [0, baseY + 0.16, 0.07], uvScale: 0.6 }));
+
+  // Peaked cap over the apex. Half-length and pitch are chosen so the outer
+  // ends land on the frame's own slope instead of hanging over the face.
+  const capHalf = 0.55;
+  const pitch = 0.55;
+  const ridgeY = baseY + apex + 0.2;
+  for (const s of [-1, 1]) {
+    const slope = box(capHalf * 2, 0.09, 0.5, mat('shingleBlue', 1.4, 0.6), {
+      pos: [s * capHalf * Math.cos(pitch), ridgeY - capHalf * Math.sin(pitch), -0.06],
+      uvScale: 0.5,
+    });
+    slope.rotation.z = -s * pitch;
+    g.add(slope);
+  }
+  g.add(box(0.2, 0.12, 0.54, dark, { pos: [0, ridgeY + 0.05, -0.06], uvScale: 0.3 }));
+  return g;
+}
+
+/**
+ * Extrudes a closed outline in the XY plane, grown outward from its own
+ * centroid by `grow` so the frame keeps the face's exact silhouette. Depth is
+ * centred on z = 0; the caller sets the height.
+ */
+function hexPanel(
+  outline: Array<[number, number]>,
+  grow: number,
+  depth: number,
+  material: THREE.Material,
+  tile = 1,
+): THREE.Mesh {
+  const cx = outline.reduce((a, p) => a + p[0], 0) / outline.length;
+  const cy = outline.reduce((a, p) => a + p[1], 0) / outline.length;
+  const shape = new THREE.Shape();
+  outline.forEach(([x, y], i) => {
+    const len = Math.hypot(x - cx, y - cy) || 1;
+    const gx = x + ((x - cx) / len) * grow;
+    const gy = y + ((y - cy) / len) * grow;
+    if (i === 0) shape.moveTo(gx, gy);
+    else shape.lineTo(gx, gy);
+  });
+  shape.closePath();
+  const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false });
+  geo.computeBoundingBox();
+  const bb = geo.boundingBox as THREE.Box3;
+  faceMapUV(geo, bb.max.x - bb.min.x, bb.max.y - bb.min.y, bb.min.y, tile);
+  geo.translate(0, 0, -depth / 2);
+  const mesh = new THREE.Mesh(geo, material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
 }
 
 export function buildWell(): THREE.Group {

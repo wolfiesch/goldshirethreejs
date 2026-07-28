@@ -38,7 +38,9 @@ export type MatKey =
   | 'sackcloth'
   | 'coal'
   | 'parchment'
-  | 'painting';
+  | 'painting'
+  | 'banner'
+  | 'hide';
 
 interface MatSpec {
   map: Parameters<typeof tex>[0] | null;
@@ -66,6 +68,8 @@ const SPECS: Record<MatKey, MatSpec> = {
   noticeBoard: { map: 'noticeBoard', color: 0xffffff },
   parchment: { map: 'parchment', color: 0xffffff },
   painting: { map: 'painting', color: 0xffffff },
+  banner: { map: 'banner', color: 0xffffff },
+  hide: { map: 'hide', color: 0xffffff },
   metalDark: { map: null, color: 0x3a3a3e },
   // Pale blue-grey plate iron, the smithy flue hood. Distinct from metalDark,
   // which is the near-black of tools and hoops and disappears against shadow.

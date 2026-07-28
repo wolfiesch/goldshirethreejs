@@ -322,9 +322,10 @@ function clutter(): ClutterSpec[] {
 const PROP_ANCHORS: Array<{ build: PropBuilder; pos: [number, number] }> = [
   { build: () => barrel(0.36, 0.86, mat('timberDark'), mat('metalDark')), pos: [45.4, -13.4] },
   { build: () => barrel(0.36, 0.86, mat('timberDark'), mat('metalDark')), pos: [53.2, -13.4] },
-  { build: () => crate(0.7, mat('timberLight')), pos: [-18.5, 10.5] },
-  { build: () => crate(0.7, mat('timberLight')), pos: [-19.3, 9.0] },
-  { build: buildSackPile, pos: [-17.6, 11.6] },
+  // Tharynn's stock, in the shade of the awning rather than beside it.
+  { build: () => crate(0.7, mat('timberLight')), pos: [-21.0, 10.7] },
+  { build: () => crate(0.7, mat('timberLight')), pos: [-22.3, 12.1] },
+  { build: buildSackPile, pos: [-20.7, 12.3] },
   // Fuel stacked outside the forge, where Argus can reach it.
   { build: buildLogPile, pos: [-16.0, -24.0] },
   { build: buildLogPile, pos: [-15.0, -30.5] },
