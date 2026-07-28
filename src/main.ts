@@ -62,9 +62,12 @@ const CAM_PRESETS: Record<string, CamPreset> = {
   // On the Redridge road at 120 degrees, looking back up it into town.
   eseRoad: { pos: [45.0, 2.3, 26.0], look: [6.0, 3.2, 1.0] },
   fork: { pos: [3.0, 2.4, -44.0], look: [1.0, 2.8, -70.0] },
-  lakeShore: { pos: [112.0, 2.4, -50.0], look: [146.0, 0.0, -55.0] },
+  // The shore road-less: reeds, waterline, then Crystal Lake to the horizon.
+  lakeShore: { pos: [102.0, 3.4, -38.0], look: [140.0, -1.5, -58.0] },
   // Across the common from the junction to the lit inn.
   nightSquare: { pos: [6.0, 2.6, 10.0], look: [42.0, 5.0, -16.0] },
+  // From the north bank, straight across: nothing roots within 3 m of water.
+  pond: { pos: [-80.5, 2.6, -57.0], look: [-56.0, -0.5, -57.0] },
 };
 
 const UP = new THREE.Vector3(0, 1, 0);

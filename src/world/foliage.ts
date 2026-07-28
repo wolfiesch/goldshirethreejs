@@ -3,8 +3,8 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { coneMat, leafMat, mat } from '../gen/materials';
 import { taperedPost } from '../gen/prims';
 import { clamp, makeRng, poissonDisc, range, type Rng } from '../gen/rng';
-import { LAKE, PLACEMENTS, ROADS, distanceToSegment, flatInset, rotateOffset } from './layout';
-import { groundY } from './terrain';
+import { PLACEMENTS, ROADS, WATER, distanceToSegment, flatInset, rotateOffset } from './layout';
+import { groundY, shoreDistance } from './terrain';
 
 /**
  * Every tree, bush and grass tuft in the 320 x 320 m world, as a handful of
@@ -64,9 +64,8 @@ const BUSH_COUNT = 260;
 const GRASS_COUNT = 1400;
 const SPECIMEN_TARGET = 26;
 
-/** East of this the ground is already dropping into the lake bed, so nothing
- *  rooted is planted there. Tied to the lake so the two cannot desync. */
-const DRY_EDGE = LAKE.shoreStart - 4;
+/** Metres of dry ground kept between the waterline and anything rooted. */
+const SHORE_CLEAR = 3;
 
 const TAU = Math.PI * 2;
 
@@ -134,6 +133,14 @@ function crossedCardGeometry(cards: number): THREE.BufferGeometry {
 
 /* -------------------------------------------------------------- placement */
 
+/** In or beside standing water, where nothing but reeds grows. */
+function inShallows(x: number, z: number): boolean {
+  for (const w of WATER) {
+    if (shoreDistance(w, x, z) < SHORE_CLEAR) return true;
+  }
+  return false;
+}
+
 function onRoad(x: number, z: number): boolean {
   for (const r of ROADS) {
     if (distanceToSegment(x, z, r.a, r.b) < 9) return true;
@@ -144,7 +151,7 @@ function onRoad(x: number, z: number): boolean {
 /** A tree may stand here: clear of the lake, of every road corridor, and
  *  `clear` metres clear of every flattened road polygon or building pad. */
 function treeAllowed(x: number, z: number, clear = 4): boolean {
-  if (x > DRY_EDGE) return false;
+  if (inShallows(x, z)) return false;
   if (flatInset(x, z) > -clear) return false;
   return !onRoad(x, z);
 }
@@ -167,11 +174,6 @@ function placeSpecimens(rng: Rng): Array<[number, number]> {
   return scored.slice(0, SPECIMEN_TARGET).map((s) => s.p);
 }
 
-/**
- * Weighted top-k selection (Efraimidis-Spirakis): key = u^(1/w), keep the
- * largest `RING_TARGET` keys. Deterministic, and the thinning weight makes the
- * far edge fade out instead of stopping dead.
- */
 /** Inside the village's open ground rather than the forest around it. */
 function inClearing(x: number, z: number): boolean {
   if (Math.hypot(x, z) < CLEARING_CORE) return true;
@@ -182,6 +184,11 @@ function inClearing(x: number, z: number): boolean {
   return false;
 }
 
+/**
+ * Weighted top-k selection (Efraimidis-Spirakis): key = u^(1/w), keep the
+ * largest `RING_TARGET` keys. Deterministic, and the thinning weight makes the
+ * far edge fade out instead of stopping dead.
+ */
 function selectForestRing(rng: Rng, candidates: Array<[number, number]>): Array<[number, number]> {
   const scored: Array<{ p: [number, number]; key: number }> = [];
   for (const p of candidates) {
@@ -301,7 +308,7 @@ function placeBushes(rng: Rng): THREE.Matrix4[] {
     const r = range(rng, 60, 90);
     const x = Math.cos(a) * r;
     const z = Math.sin(a) * r;
-    if (x > DRY_EDGE || flatInset(x, z) > -1.5 || onRoad(x, z)) continue;
+    if (inShallows(x, z) || flatInset(x, z) > -1.5 || onRoad(x, z)) continue;
     push(x, z);
   }
 
@@ -315,7 +322,7 @@ function placeBushes(rng: Rng): THREE.Matrix4[] {
     const [ox, oz] = rotateOffset(lx, lz, p.rotY);
     const x = p.pos[0] + ox;
     const z = p.pos[2] + oz;
-    if (x > DRY_EDGE || flatInset(x, z) > -0.2) continue;
+    if (inShallows(x, z) || flatInset(x, z) > -0.2) continue;
     push(x, z);
   }
   return out;

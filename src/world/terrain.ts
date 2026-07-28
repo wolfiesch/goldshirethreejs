@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { leafMat, mat, waterMat } from '../gen/materials';
 import { clamp, fbm, makeRng, range, smoothstep, valueNoise2D } from '../gen/rng';
 import type { TickFn } from '../core/types';
-import { APRON, INN_FORECOURT, LAKE, ROADS, type RoadRect, type RoadSegment, TERRAIN_VOIDS, type Vec2, VERGE_WIDTH, flatInset, rotateOffset } from './layout';
+import { APRON, INN_FORECOURT, ROADS, type RoadRect, type RoadSegment, TERRAIN_VOIDS, type Vec2, VERGE_WIDTH, WATER, type WaterBody, flatInset, outsideRect, rotateOffset } from './layout';
 
 /**
  * Ground, roads and Crystal Lake. Terrain is forced to exactly y = 0 under
@@ -21,14 +21,56 @@ export interface Terrain {
   heightAt(x: number, z: number): number;
 }
 
-/** Rolling ground, levelled under roads and pads, dropping into the lake bed. */
+/** Rolling ground, levelled under roads and pads, dropping into a water bed. */
 export function heightAt(x: number, z: number): number {
   const rolling = (fbm(terrainNoise, x * 0.012, z * 0.012, 3, 0.5) * 2 - 1) * 1.2;
   const flat = smoothstep(-9, -3, flatInset(x, z));
   let y = rolling * (1 - flat);
-  const shore = smoothstep(LAKE.shoreStart, LAKE.shoreEnd, x);
-  if (shore > 0) y = y * (1 - shore) + LAKE.bedY * shore;
+  for (const w of WATER) y = Math.min(y, basinY(w, x, z, y));
   return y;
+}
+
+/**
+ * Distance out from a waterline, negative in the water. The rectangle is the
+ * authored shape and the noise is what stops it looking authored: a lake whose
+ * edge is exactly a rectangle reads as a swimming pool from any angle low
+ * enough to see the shore. Everything that cares where the water ends goes
+ * through this, so reeds and the foliage clamp wobble with it.
+ */
+export function shoreDistance(w: WaterBody, x: number, z: number): number {
+  const amp = shoreWobble(w);
+  // Frequency scales with the body too, so a pond gets two or three
+  // undulations along each edge rather than one lazy bulge.
+  const freq = 0.9 / Math.max(7, amp * 3);
+  return outsideRect(x, z, w.centre, w.size) + (edgeNoise(x * freq, z * freq) - 0.5) * amp;
+}
+
+/**
+ * Peak-to-peak wander of a waterline. Scaled to the body: an amplitude that
+ * reads as a ragged lake edge punches islands through a pond a fifth the size.
+ */
+function shoreWobble(w: WaterBody): number {
+  return Math.min(5, Math.min(w.size[0], w.size[1]) * 0.16);
+}
+
+/**
+ * Ground under and around one water body: grade at the outer edge of the shore
+ * band, exactly `surfaceY` on the waterline, `bedY` once `depthRun` inside.
+ * Returns `grade` untouched beyond the band, so `heightAt` can take the
+ * minimum across bodies and let the deeper one win where two ever meet.
+ */
+function basinY(w: WaterBody, x: number, z: number, grade: number): number {
+  const d = shoreDistance(w, x, z);
+  if (d > w.shoreBand) return grade;
+  if (d >= 0) {
+    // The beach starts from a lip guaranteed to clear the waterline. Blending
+    // straight from `grade` leaves the whole band under water wherever the
+    // rolling ground happens to dip below `surfaceY`, and the sheet then ends
+    // on open grass with a dead straight edge.
+    const lip = Math.max(grade, w.surfaceY + 0.4);
+    return lip + (w.surfaceY - lip) * smoothstep(0, 1, 1 - d / w.shoreBand);
+  }
+  return w.surfaceY + (w.bedY - w.surfaceY) * smoothstep(0, 1, Math.min(1, -d / w.depthRun));
 }
 
 const CELL = SIZE / SEGS;
@@ -236,44 +278,58 @@ export function buildTerrain(): Terrain {
     group.add(apronMesh(rect, surfaceY, cobble, 3));
   }
 
-  // ---- Crystal Lake -------------------------------------------------------
-  const waterGeo = new THREE.PlaneGeometry(LAKE.size[0], LAKE.size[1]);
-  waterGeo.rotateX(-Math.PI / 2);
-  const water = new THREE.Mesh(waterGeo, waterMat());
-  water.position.set(LAKE.centre[0], LAKE.surfaceY, LAKE.centre[1]);
-  water.userData.collide = false;
-  water.receiveShadow = false;
-  water.castShadow = false;
+  // ---- standing water -----------------------------------------------------
+  // One tick drives every surface: the material is shared, so scrolling its
+  // map once per frame moves all of them.
   const scrollTick: TickFn = (_dt, elapsed) => {
     const m = waterMat().map;
     if (m) m.offset.set((elapsed * 0.012) % 1, (elapsed * 0.008) % 1);
   };
-  water.userData.tick = scrollTick;
-  group.add(water);
-
-  group.add(buildReeds());
+  for (const w of WATER) {
+    // Just past the furthest the waterline can wander, and no further. The
+    // wobble is plus or minus half the amplitude, so half of it plus a little
+    // slack covers the outermost shore; give it a whole amplitude and the
+    // sheet's straight edge ends up over dry grass, reading as a laid tarp.
+    const margin = shoreWobble(w) * 0.5 + 0.8;
+    const waterGeo = new THREE.PlaneGeometry(w.size[0] + margin * 2, w.size[1] + margin * 2);
+    waterGeo.rotateX(-Math.PI / 2);
+    const water = new THREE.Mesh(waterGeo, waterMat());
+    water.position.set(w.centre[0], w.surfaceY, w.centre[1]);
+    water.userData.collide = false;
+    water.receiveShadow = false;
+    water.castShadow = false;
+    water.userData.tick = w === WATER[0] ? scrollTick : undefined;
+    group.add(water);
+    group.add(buildReeds(w));
+  }
 
   return { group, heightAt };
 }
 
-/** Reed clumps in the shallows: three crossed alpha quads per clump. */
-function buildReeds(): THREE.InstancedMesh {
-  const rng = makeRng(0x5eed);
+/**
+ * Reed clumps standing in the shallows of one water body: three crossed alpha
+ * quads per clump. Sampled across the whole waterline rather than along a band
+ * of x, so the reeds follow the shore wherever the shore happens to be.
+ */
+function buildReeds(w: WaterBody): THREE.InstancedMesh {
+  const rng = makeRng(0x5eed + Math.round(w.centre[0]));
   const clumps: THREE.Matrix4[] = [];
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const scale = new THREE.Vector3();
   const p = new THREE.Vector3();
-  // The shallows: the 10 m band inland of the waterline, derived so the reeds
-  // cannot end up standing on dry ground when the lake moves.
-  const x0 = LAKE.shoreEnd - 12;
-  const z0 = LAKE.centre[1] - LAKE.size[1] / 2 + 8;
-  const z1 = LAKE.centre[1] + LAKE.size[1] / 2 - 8;
-  for (let i = 0; i < 260; i++) {
-    const x = range(rng, x0, x0 + 10);
-    const z = range(rng, z0, z1);
+  const reach = 5;
+  const halfX = w.size[0] / 2 + reach;
+  const halfZ = w.size[1] / 2 + reach;
+  const target = Math.round((w.size[0] + w.size[1]) * 1.2);
+  for (let guard = 0; clumps.length < target && guard < target * 40; guard++) {
+    const x = w.centre[0] + range(rng, -halfX, halfX);
+    const z = w.centre[1] + range(rng, -halfZ, halfZ);
+    // Only the fringe: knee deep on one side, just dry on the other.
+    const d = shoreDistance(w, x, z);
+    if (d > reach || d < -6) continue;
     const y = groundY(x, z);
-    if (y > 0.1) continue;
+    if (y > w.surfaceY + 0.35 || y < w.surfaceY - 0.9) continue;
     const s = range(rng, 0.7, 1.5);
     p.set(x, y + s * 0.5, z);
     q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), range(rng, 0, Math.PI));

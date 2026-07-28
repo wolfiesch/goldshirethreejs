@@ -72,18 +72,28 @@
   say(`VOID  ${L.TERRAIN_VOIDS.map((v) => v.map((n) => n.toFixed(1)).join(',')).join(' | ')}`);
   say(`SPAWN flatInset ${L.flatInset(L.SPAWN[0], L.SPAWN[2]).toFixed(2)} groundY ${groundY(L.SPAWN[0], L.SPAWN[2]).toFixed(3)}`);
 
-  // The lake must not swallow a road.
-  for (const r of L.ROADS) {
-    for (let t = 0; t <= 1; t += 0.01) {
-      const x = r.a[0] + (r.b[0] - r.a[0]) * t;
-      const z = r.a[1] + (r.b[1] - r.a[1]) * t;
-      const inX = Math.abs(x - L.LAKE.centre[0]) < L.LAKE.size[0] / 2;
-      const inZ = Math.abs(z - L.LAKE.centre[1]) < L.LAKE.size[1] / 2;
-      if (inX && inZ) {
-        say(`ROAD-IN-LAKE  ${r.a} -> ${r.b} at (${x.toFixed(0)}, ${z.toFixed(0)})`);
-        break;
+  // No water may swallow a road, and every basin must actually hold water.
+  for (const w of L.WATER) {
+    for (const r of L.ROADS) {
+      for (let t = 0; t <= 1; t += 0.005) {
+        const x = r.a[0] + (r.b[0] - r.a[0]) * t;
+        const z = r.a[1] + (r.b[1] - r.a[1]) * t;
+        if (L.outsideRect(x, z, w.centre, w.size) < w.shoreBand) {
+          say(`ROAD-IN-WATER  ${r.a} -> ${r.b} at (${x.toFixed(0)}, ${z.toFixed(0)})`);
+          break;
+        }
       }
     }
+    let dry = 0;
+    let deepest = 0;
+    for (let i = 0; i < 400; i++) {
+      const x = w.centre[0] + ((i % 20) / 19 - 0.5) * w.size[0] * 0.9;
+      const z = w.centre[1] + (Math.floor(i / 20) / 19 - 0.5) * w.size[1] * 0.9;
+      const y = groundY(x, z);
+      if (y > w.surfaceY) dry++;
+      deepest = Math.min(deepest, y);
+    }
+    say(`WATER (${w.centre}) ${dry}/400 samples above the waterline, deepest ${deepest.toFixed(2)}`);
   }
 
   // The props that actually ship: every scattered one must clear road and pad.

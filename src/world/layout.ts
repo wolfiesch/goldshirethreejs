@@ -126,19 +126,54 @@ export const ROADS: RoadSegment[] = [
 export const VERGE_WIDTH = 2.5;
 
 /**
+ * Standing water. `size` is the waterline, not the water plane and not the
+ * basin: terrain reaches exactly `surfaceY` on the rect's edge, drops to
+ * `bedY` over `depthRun` inside it and climbs back to grade over `shoreBand`
+ * outside. Tying all three to one rectangle is what keeps the shoreline where
+ * the eye expects it; the shore used to be a function of x alone, which put
+ * the waterline in one place and the water plane's edge in another.
+ */
+export interface WaterBody {
+  centre: Vec2;
+  size: Vec2;
+  surfaceY: number;
+  bedY: number;
+  depthRun: number;
+  shoreBand: number;
+}
+
+/**
  * Crystal Lake. The minimap puts its west shore about 130 m east of the
  * junction and its body north of the east road, which is why the road can run
  * to the map edge without ever crossing water.
  */
-export const LAKE = {
-  centre: [148, -55] as Vec2,
-  size: [46, 170] as Vec2,
+export const LAKE: WaterBody = {
+  centre: [148, -55],
+  size: [46, 170],
   surfaceY: -0.35,
-  bedY: -1.6,
-  /** Terrain drops to `bedY` beyond `shoreEnd`, ramping from `shoreStart`. */
-  shoreStart: 116,
-  shoreEnd: 130,
+  bedY: -2.4,
+  depthRun: 14,
+  shoreBand: 14,
 };
+
+/** The pond west of the Stormwind road, well clear of every carriageway. */
+export const POND: WaterBody = {
+  centre: [-62, -57],
+  size: [24, 17],
+  surfaceY: -0.25,
+  bedY: -1.2,
+  depthRun: 5,
+  shoreBand: 7,
+};
+
+export const WATER: WaterBody[] = [LAKE, POND];
+
+/** Distance outside a rectangle, negative inside it (Chebyshev within). */
+export function outsideRect(x: number, z: number, centre: Vec2, size: Vec2): number {
+  const dx = Math.abs(x - centre[0]) - size[0] / 2;
+  const dz = Math.abs(z - centre[1]) - size[1] / 2;
+  return Math.hypot(Math.max(dx, 0), Math.max(dz, 0)) + Math.min(Math.max(dx, dz), 0);
+}
 
 /**
  * Rectangles where the ground plane must be removed entirely: anything with a
