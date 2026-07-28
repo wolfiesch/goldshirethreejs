@@ -18,9 +18,24 @@ import { groundY } from './terrain';
 const FOLIAGE_SEED = 0x0f01ace;
 
 /** Canonical heights. Per-tree height is applied as a uniform instance scale,
- *  so a taller tree also carries a proportionally larger crown. */
-const BROADLEAF_H = 11.5;
-const CONIFER_H = 13.5;
+ *  so a taller tree also carries a proportionally larger crown.
+ *
+ *  Elwynn is closed canopy: the references show 2 to 4 m trunks with the first
+ *  branch 15 to 20 m up and the crowns meeting overhead, which is why the
+ *  village reads as a clearing cut into a forest rather than a field with
+ *  shrubs around it. */
+const BROADLEAF_H = 22;
+const CONIFER_H = 26;
+
+/**
+ * Crown and trunk dimensions as fractions of tree height.
+ *
+ * They used to be absolute metres, which quietly coupled them to whatever
+ * `*_H` happened to be: raising the height alone would have left a sapling's
+ * canopy perched on a mature trunk.
+ */
+const BROADLEAF = { crownW: 0.652, crownH: 0.565, crownY: 0.72, skirtY: 0.55, trunkH: 0.42, rBase: 0.045, rTop: 0.028 };
+const CONIFER = { tierW0: 0.356, tierW1: 0.141, tierH0: 0.341, tierH1: 0.193, trunkH: 0.78, rBase: 0.026, rTop: 0.0105 };
 
 const CONIFER_SHARE = 0.12;
 const RING_TARGET = 420;
@@ -49,15 +64,17 @@ interface TreeInstance {
 /** Three crossed cards at 0/60/120 degrees plus one horizontal card below. */
 function broadleafCrownGeometry(): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [];
+  const w = BROADLEAF_H * BROADLEAF.crownW;
+  const h = BROADLEAF_H * BROADLEAF.crownH;
   for (let i = 0; i < 3; i++) {
-    const card = new THREE.PlaneGeometry(7.5, 6.5);
+    const card = new THREE.PlaneGeometry(w, h);
     card.rotateY((i / 3) * Math.PI);
-    card.translate(0, BROADLEAF_H * 0.72, 0);
+    card.translate(0, BROADLEAF_H * BROADLEAF.crownY, 0);
     parts.push(card);
   }
-  const flat = new THREE.PlaneGeometry(7.5 * 0.8, 6.5 * 0.8);
+  const flat = new THREE.PlaneGeometry(w * 0.8, h * 0.8);
   flat.rotateX(-Math.PI / 2);
-  flat.translate(0, BROADLEAF_H * 0.55, 0);
+  flat.translate(0, BROADLEAF_H * BROADLEAF.skirtY, 0);
   parts.push(flat);
   const merged = mergeGeometries(parts, false);
   for (const p of parts) p.dispose();
@@ -69,8 +86,8 @@ function coniferCardGeometry(): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = [];
   for (let i = 0; i < 4; i++) {
     const t = i / 3;
-    const w = 4.8 + (1.9 - 4.8) * t;
-    const h = 4.6 + (2.6 - 4.6) * t;
+    const w = CONIFER_H * (CONIFER.tierW0 + (CONIFER.tierW1 - CONIFER.tierW0) * t);
+    const h = CONIFER_H * (CONIFER.tierH0 + (CONIFER.tierH1 - CONIFER.tierH0) * t);
     const y = CONIFER_H * (0.2 + 0.52 * t);
     for (let k = 0; k < 2; k++) {
       const card = new THREE.PlaneGeometry(w, h);
@@ -135,7 +152,7 @@ function selectForestRing(rng: Rng, candidates: Array<[number, number]>): Array<
 
 function makeTreeInstance(rng: Rng, x: number, z: number): TreeInstance {
   const conifer = rng() < CONIFER_SHARE;
-  const height = conifer ? range(rng, 11, 16) : range(rng, 9, 14);
+  const height = conifer ? range(rng, 21, 30) : range(rng, 18, 25);
   const scale = height / (conifer ? CONIFER_H : BROADLEAF_H);
   const spin = range(rng, 0, TAU);
   const leanDir = range(rng, 0, TAU);
@@ -194,10 +211,12 @@ function makeInstanced(spec: InstanceSpec): THREE.InstancedMesh | null {
 function buildTrunkCollision(trees: TreeInstance[]): THREE.Mesh {
   const parts: THREE.BufferGeometry[] = [];
   for (const t of trees) {
-    const h = (t.conifer ? CONIFER_H * 0.78 : BROADLEAF_H * 0.42) * 0.98;
+    const H = t.conifer ? CONIFER_H : BROADLEAF_H;
+    const spec = t.conifer ? CONIFER : BROADLEAF;
+    const h = H * spec.trunkH * 0.98;
     // 0.9x matches the inradius of the visual 7-gon/6-gon trunks.
-    const rBase = (t.conifer ? 0.3 : 0.42) * 0.9;
-    const rTop = (t.conifer ? 0.12 : 0.26) * 0.9;
+    const rBase = H * spec.rBase * 0.9;
+    const rTop = H * spec.rTop * 0.9;
     const geo = new THREE.CylinderGeometry(rTop, rBase, h, 5, 1, true);
     geo.translate(0, h / 2, 0);
     geo.applyMatrix4(t.matrix);
@@ -298,9 +317,21 @@ export function buildFoliage(): THREE.Group {
   const bark = mat('bark');
   const leaf = leafMat();
   const cone = coneMat();
-  const broadTrunk = taperedPost(BROADLEAF_H * 0.42, 0.42, 0.26, 7, bark).geometry;
+  const broadTrunk = taperedPost(
+    BROADLEAF_H * BROADLEAF.trunkH,
+    BROADLEAF_H * BROADLEAF.rBase,
+    BROADLEAF_H * BROADLEAF.rTop,
+    7,
+    bark,
+  ).geometry;
   const broadCrown = broadleafCrownGeometry();
-  const coniTrunk = taperedPost(CONIFER_H * 0.78, 0.3, 0.12, 6, bark).geometry;
+  const coniTrunk = taperedPost(
+    CONIFER_H * CONIFER.trunkH,
+    CONIFER_H * CONIFER.rBase,
+    CONIFER_H * CONIFER.rTop,
+    6,
+    bark,
+  ).geometry;
   const coniCard = coniferCardGeometry();
   const bushGeo = crossedCardGeometry(2);
   const grassGeo = crossedCardGeometry(3);

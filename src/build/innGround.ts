@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mat } from '../gen/materials';
-import { barrel, bottle, box, candle, candleRingChandelier, crate, cylinder, fireEffect, jar, tankard, taperedPost } from '../gen/prims';
+import { barrel, bottle, bowedBeam, box, candle, candleRingChandelier, crate, cylinder, fireEffect, jar, tankard, taperedPost } from '../gen/prims';
 import { makeRng, range, type Rng } from '../gen/rng';
 import {
   barrelPyramid,
@@ -59,11 +59,13 @@ export function buildInnGround(): THREE.Group {
 
   // ---- ceiling frame: primaries N-S, joists E-W, posts under the primaries -
   for (const px of [-2.5, 2.5]) {
-    g.add(box(0.35, 0.45, IZ * 2, dark, { pos: [px, 3.775, 0], uvScale: 1.2 }));
-    const post = taperedPost(3.05, 0.2, 0.26, 8, light);
+    // Bowed, not boxed: every interior reference shows the primaries sagging
+    // under the floor above. The post below meets the beam at its lowest point.
+    g.add(bowedBeam([px, 3.775, -IZ], [px, 3.775, IZ], 0.35, 0.45, 0.09, dark));
+    const post = taperedPost(3.05 - 0.09, 0.2, 0.26, 8, light);
     post.position.set(px, FLOOR, 0);
     g.add(post);
-    g.add(box(0.5, 0.14, 0.5, dark, { pos: [px, 3.48, 0], uvScale: 0.4 }));
+    g.add(box(0.5, 0.14, 0.5, dark, { pos: [px, 3.39, 0], uvScale: 0.4 }));
   }
   // Joists stop at the stairwell trimmer: run them full width and they cross
   // the opening at head height, capping the stair four steps up.

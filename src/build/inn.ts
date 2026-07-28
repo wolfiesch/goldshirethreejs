@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { lanternMat, mat } from '../gen/materials';
 import { registerNightLight } from '../core/daynight';
-import { barrel, box, crate, cylinder, kneeBrace, smokePlume, sweptPrism, swaybackHeightFn, swaybackRoof, taperedPost } from '../gen/prims';
+import { barrel, box, crate, cylinder, flutedPost, flutedRadius, kneeBrace, smokePlume, sweptPrism, swaybackHeightFn, swaybackRoof, taperedPost } from '../gen/prims';
 import { buildWall, gableWall, type Opening, windowUnit } from './innParts';
 import { buildInnCellar } from './innCellar';
 import { buildInnGround } from './innGround';
@@ -61,17 +61,20 @@ const FACADE: Record<WindowPlace['facade'], { axis: 'x' | 'z'; offset: number; r
 
 const DOOR = { a: 1.5, w: 2.0, y0: INN.floorG, y1: 3.1 };
 
-/** Studs every 1.6 m; lozenges sit in the bays between them. */
+/** Studs every 1.6 m. */
 const STUD_X = [-7.2, -5.6, -4.0, -2.4, -0.8, 0.8, 2.4, 4.0, 5.6, 7.2];
 const STUD_Z = [-3.6, -2.0, -0.4, 1.2, 2.8];
-const LOZENGE = {
-  south: [-6.8, -5.2, -3.6, 0.4, 2.0, 3.6],
-  north: [-6.8, -5.2, -2.5, 0.7, 2.3, 6.4],
-  east: [-2.8, -1.2, 2.4],
-  west: [0.6, 2.2, 3.8],
-};
-const LOZENGE_Y = 5.75;
-const LOZENGE_SIZE = 0.55;
+
+/**
+ * Heights of the lozenge run up each post. The gap is not decoration: the knee
+ * braces occupy 2.95 to 4.05 and the doubled belt course 4.10 to 4.56, so a
+ * diamond anywhere between them would be half-buried in timber.
+ */
+const LOZENGE_Y = [1.45, 2.35, 4.85, 5.7, 6.55];
+const LOZENGE_SIZE = 0.34;
+
+/** Corner posts: rBase, rTop and side count, shared with the lozenge fitting. */
+const POST = { rBase: 0.28, rTop: 0.375, sides: 8 };
 
 function openingsFor(facade: WindowPlace['facade']): Opening[] {
   const out: Opening[] = WINDOWS.filter((wd) => wd.facade === facade).map((wd) => ({
@@ -84,21 +87,42 @@ function openingsFor(facade: WindowPlace['facade']): Opening[] {
   return out;
 }
 
-/** Rotated square let into the plaster: the detail that makes the wall read as Azeroth. */
-function lozenges(positions: number[], axis: 'x' | 'z', offset: number, outward: number): THREE.Group {
+/**
+ * The dark diamonds, running vertically up the outward face of a flared post.
+ *
+ * Every reference puts them here rather than scattered across the plaster: the
+ * run reads as a stripe carved into the timber, and it is what makes a corner
+ * post look like a corner post rather than a column.
+ *
+ * `bearing` is measured from +Z toward +X, which is both the direction the run
+ * faces and the Y rotation that turns the panel to face it.
+ */
+function postLozenges(bearing: number): THREE.Group {
   const g = new THREE.Group();
-  const half = (LOZENGE_SIZE * Math.SQRT2) / 2;
-  for (const a of positions) {
-    const panel = box(LOZENGE_SIZE, LOZENGE_SIZE, 0.09, mat('timberDark'), { uvScale: 0.35 });
-    // Inset 0.04 into the plaster, so the outer face sits just proud of the render.
-    const depth = offset + outward * (INN.wallT / 2 + 0.005);
-    panel.position.set(axis === 'x' ? a : depth, LOZENGE_Y, axis === 'x' ? depth : a);
+  const dark = mat('timberDark');
+  for (const y of LOZENGE_Y) {
+    const panel = box(LOZENGE_SIZE, LOZENGE_SIZE, 0.07, dark, { uvScale: 0.35 });
+    // The post has a waist, so its radius here is not a straight interpolation
+    // between foot and head. Read it from the same function that shapes it.
+    const d = flutedRadius(y / INN.eaves, POST.rBase, POST.rTop) + 0.015;
+    panel.position.set(Math.sin(bearing) * d, y, Math.cos(bearing) * d);
+    // Euler order is XYZ, so Z runs first: it spins the square onto its corner
+    // while the face normal is still +Z, then Y turns that normal outward.
     panel.rotation.z = Math.PI / 4;
-    if (axis === 'z') panel.rotation.y = Math.PI / 2;
-    panel.userData.lozengeHalf = half;
+    panel.rotation.y = bearing;
     g.add(panel);
   }
   return g;
+}
+
+/**
+ * Which way a post faces. A post on a corner faces the diagonal; one along a
+ * wall faces that wall's normal.
+ */
+function postBearing(px: number, pz: number): number {
+  const ox = Math.abs(px) === INN.halfX ? Math.sign(px) : 0;
+  const oz = Math.abs(pz) === INN.halfZ ? Math.sign(pz) : 0;
+  return Math.atan2(ox, oz);
 }
 
 function framingFor(
@@ -220,9 +244,14 @@ export function buildInn(): THREE.Group {
     [-INN.halfX, 0], [INN.halfX, 0],
   ];
   for (const [px, pz] of postSpots) {
-    const post = taperedPost(INN.eaves, 0.28, 0.375, 8, light);
+    const bearing = postBearing(px, pz);
+    const post = flutedPost(INN.eaves, POST.rBase, POST.rTop, POST.sides, light);
     post.position.set(px, 0, pz);
     root.add(post);
+
+    const run = postLozenges(bearing);
+    run.position.set(px, 0, pz);
+    root.add(run);
   }
 
   for (const y of [4.1, 4.45]) {
@@ -238,11 +267,6 @@ export function buildInn(): THREE.Group {
   root.add(framingFor('north', STUD_X, 'x', -SOUTH_Z, -1));
   root.add(framingFor('east', STUD_Z, 'z', EAST_X, 1));
   root.add(framingFor('west', STUD_Z, 'z', -EAST_X, -1));
-
-  root.add(lozenges(LOZENGE.south, 'x', SOUTH_Z, 1));
-  root.add(lozenges(LOZENGE.north, 'x', -SOUTH_Z, -1));
-  root.add(lozenges(LOZENGE.east, 'z', EAST_X, 1));
-  root.add(lozenges(LOZENGE.west, 'z', -EAST_X, -1));
 
   // Knee braces at every post-to-belt junction: two in the facade plane, and
   // two more in the perpendicular plane where the post turns a corner.
@@ -284,17 +308,27 @@ export function buildInn(): THREE.Group {
   root.add(roof);
   for (const sx of [-1, 1]) {
     const finial = taperedPost(0.9, 0.11, 0.05, 6, light);
-    finial.position.set(sx * 8.4, INN.ridge + 0.16, 0);
+    // Seated on the ridge cap rather than on `INN.ridge`: the cap follows the
+    // sagged ridge line, and the sag at this x depends on the gable overhang.
+    finial.position.set(sx * 8.4, roofY(sx * 8.4, 0) + 0.205, 0);
     root.add(finial);
   }
 
   // ---- chimney (west gable, external, aligned on the hearth) --------------
-  const chimneyX = -(INN.halfX + 0.8);
-  root.add(box(1.6, 14.2, 1.2, mat('brick'), { pos: [chimneyX, 7.1, -1.0], uvScale: 1.4 }));
-  root.add(box(1.9, 0.4, 1.5, mat('brick'), { pos: [chimneyX, 14.4, -1.0], uvScale: 1.0 }));
-  root.add(box(2.0, 0.15, 1.6, mat('carvedStone'), { pos: [chimneyX, 14.675, -1.0], uvScale: 1.0 }));
+  /*
+   * Wide enough to stand clear of the roof. The gable overhang reaches
+   * x = -9.5, so a 1.6 m stack against the wall would be almost entirely
+   * roofed over; the references show a broad brick mass with a metre of
+   * brickwork proud of the shingles, so the stack runs from the wall face out
+   * past the roof edge.
+   */
+  const CHIM = { w: 2.6, d: 1.6, z: -1.0 };
+  const chimneyX = -INN.halfX - CHIM.w / 2;
+  root.add(box(CHIM.w, 14.2, CHIM.d, mat('brick'), { pos: [chimneyX, 7.1, CHIM.z], uvScale: 1.4 }));
+  root.add(box(CHIM.w + 0.3, 0.4, CHIM.d + 0.3, mat('brick'), { pos: [chimneyX, 14.4, CHIM.z], uvScale: 1.0 }));
+  root.add(box(CHIM.w + 0.4, 0.15, CHIM.d + 0.4, mat('carvedStone'), { pos: [chimneyX, 14.675, CHIM.z], uvScale: 1.0 }));
   const smoke = smokePlume(40, 9, 0.45, 8801, 1.1);
-  smoke.position.set(chimneyX, 14.8, -1.0);
+  smoke.position.set(chimneyX, 14.8, CHIM.z);
   root.add(smoke);
 
   // ---- windows ------------------------------------------------------------
@@ -377,7 +411,7 @@ function buildPorch(): THREE.Group {
   const postXs = [cx - 2.6, cx + 2.6];
   for (const px of postXs) {
     for (const pz of [z0 + 0.12, z1 - 0.12]) {
-      const post = taperedPost(3.4, 0.22, 0.3, 8, light);
+      const post = flutedPost(3.4, 0.22, 0.3, 8, light);
       post.position.set(px, 0.5, pz);
       g.add(post);
     }

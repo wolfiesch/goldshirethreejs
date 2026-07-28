@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { flameMat, mat, smokeMat } from './materials';
-import { jitter, makeRng, range, type Rng } from './rng';
+import { jitter, makeRng, range, smoothstep, type Rng } from './rng';
 import type { TickFn } from '../core/types';
 
 /**
@@ -95,6 +95,79 @@ export function taperedPost(h: number, rBase: number, rTop: number, sides: numbe
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   return mesh;
+}
+
+/**
+ * Radius of a `flutedPost` at height fraction `t`, so anything mounted on the
+ * post can find its surface. Exported because a lozenge run placed against a
+ * straight taper would float away from the waist.
+ */
+export function flutedRadius(t: number, rBase: number, rTop: number): number {
+  const foot = 1 - smoothstep(0, 0.16, t);
+  const head = smoothstep(0.5, 1, t);
+  return rBase * (1 + 0.5 * foot) + (rTop - rBase) * head;
+}
+
+/**
+ * The corner post as the references actually draw it: a splayed foot, a waist
+ * around a third of the way up, and a head that flares out under the eave.
+ * `taperedPost` gives a straight cone, which reads as a column rather than a
+ * dressed tree.
+ *
+ * The surface is scalloped into `sides` shallow flutes. The ridge between two
+ * flutes lands exactly on every multiple of 2*pi/sides, which is where the
+ * lozenge runs are mounted, so a post is never rotated to meet its trim.
+ *
+ * Open-ended: both ends are buried, in the plinth below and under the eave
+ * above, and caps would only add triangles nobody can see.
+ */
+export function flutedPost(h: number, rBase: number, rTop: number, sides: number, material: THREE.Material): THREE.Mesh {
+  const geo = new THREE.CylinderGeometry(1, 1, 1, sides * 2, 12, true);
+  const pos = geo.attributes.position as THREE.BufferAttribute;
+  for (let i = 0; i < pos.count; i++) {
+    const t = pos.getY(i) + 0.5;
+    const theta = Math.atan2(pos.getX(i), pos.getZ(i));
+    // Two radial segments per flute, so each lands on a ridge or a trough
+    // rather than aliasing across the scallop.
+    const flute = 1 - 0.06 * (0.5 - 0.5 * Math.cos(sides * theta));
+    const r = flutedRadius(t, rBase, rTop) * flute;
+    pos.setXYZ(i, Math.sin(theta) * r, t * h, Math.cos(theta) * r);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, material);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+/**
+ * A hand-hewn ceiling beam, sagged along its length. Straight boxes read as
+ * sawn steel; every interior reference shows the primaries bowing under the
+ * floor above.
+ */
+export function bowedBeam(
+  from: Vec3Like,
+  to: Vec3Like,
+  width: number,
+  depth: number,
+  sag: number,
+  material: THREE.Material,
+): THREE.Mesh {
+  const a = new THREE.Vector3(...from);
+  const b = new THREE.Vector3(...to);
+  const SEGS = 12;
+  const pts: THREE.Vector3[] = [];
+  for (let i = 0; i <= SEGS; i++) {
+    const t = i / SEGS;
+    const p = a.clone().lerp(b, t);
+    p.y -= sag * (1 - (2 * t - 1) * (2 * t - 1));
+    pts.push(p);
+  }
+  // Across the run and level, whichever way the run points.
+  const across = new THREE.Vector3(-(b.z - a.z), 0, b.x - a.x);
+  if (across.lengthSq() < 1e-9) across.set(1, 0, 0);
+  return sweptPrism(pts, across.normalize(), width, depth, material);
 }
 
 export function cylinder(r: number, h: number, sides: number, material: THREE.Material, opts?: BoxOpts): THREE.Mesh {

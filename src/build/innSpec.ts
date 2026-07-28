@@ -25,8 +25,24 @@ export const INN = {
    */
   eaves: 6.85,
   ridge: 12.4,
-  /** Roof eave line, 1.0 m outboard of the long walls. */
-  eaveY: 6.2,
+  /**
+   * Roof eave line, at the outer edge of a 1.5 m overhang.
+   *
+   * This is derived, not chosen. The roof surface interpolates linearly from
+   * `ridge` at z = 0 to `eaveY` at z = D, where D = halfZ + overhangZ, so the
+   * wall face at z = halfZ samples it at v = halfZ / D. Deepening the overhang
+   * raises D, which lowers v, which lifts the surface off the wall top:
+   *
+   *   D          = 5.0 + 1.5 = 6.5
+   *   v_wall     = 5.0 / 6.5 = 0.7692
+   *   sag_wall   = 0.45 + (0.30 - 0.45) * v_wall = 0.3346
+   *   y_wall     = 12.4 + (eaveY - 12.4) * v_wall - sag_wall
+   *
+   * Holding y_wall at the 6.91 the old 1.0 m overhang produced, which clears
+   * `eaves` by 6 cm, gives eaveY = 5.70. Left at 6.2 the underside would rise
+   * to 7.30 and open a 45 cm slot of daylight along both long walls.
+   */
+  eaveY: 5.7,
   /** Flat collar ceiling over the upper floor. */
   collarY: 9.0,
   collarHalfZ: 1.75,
@@ -49,13 +65,21 @@ export const INN_ROOF = {
   ridgeY: INN.ridge,
   eaveY: INN.eaveY,
   /** Ridge overhang past each gable. */
-  overhangX: 0.8,
+  overhangX: 1.5,
   /** Eave overhang past each long wall. */
-  overhangZ: 1.0,
+  overhangZ: 1.5,
   sagRidge: 0.45,
   sagEave: 0.3,
-  /** Upturn added over the outer 14% of each slope. */
-  flare: 0.35,
+  /**
+   * Upturn added over the outer 14% of each slope.
+   *
+   * 0.65 rather than the earlier 0.35 because below about 0.6 the flare only
+   * slows the descent instead of reversing it: the slope loses 6.55 m of height
+   * per unit v, and the quadratic gives back 2 * flare / 0.14 at the tip. Under
+   * 0.46 the eave is still falling where it ends, which is a softened edge and
+   * not the upward flick the references show.
+   */
+  flare: 0.65,
 } as const;
 
 /**
