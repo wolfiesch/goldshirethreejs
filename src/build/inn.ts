@@ -5,7 +5,7 @@ import { barrel, box, crate, cylinder, kneeBrace, smokePlume, sweptPrism, swayba
 import { buildWall, gableWall, type Opening, windowUnit } from './innParts';
 import { buildInnCellar } from './innCellar';
 import { buildInnGround } from './innGround';
-import { INN } from './innSpec';
+import { INN, INN_ROOF_ARGS } from './innSpec';
 import { buildInnUpper } from './innUpper';
 
 /**
@@ -175,7 +175,7 @@ export function buildInn(): THREE.Group {
   // ---- gables -------------------------------------------------------------
   // The rake follows the real sagged roof surface; a straight line to the full
   // ridge height would leave a sliver of plaster proud of the shingles.
-  const roofY = swaybackHeightFn(16.0, INN.halfZ, INN.ridge, INN.eaveY, 0.8, 1.0, 0.45, 0.3, 0.35);
+  const roofY = swaybackHeightFn(...INN_ROOF_ARGS);
   for (const sx of [-1, 1]) {
     const rakeAt = (z: number): number => roofY(sx * EAST_X, z) - 0.04;
     const gable = gableWall(
@@ -277,7 +277,7 @@ export function buildInn(): THREE.Group {
   }
 
   // ---- roof ---------------------------------------------------------------
-  const roof = swaybackRoof(16.0, INN.halfZ, INN.ridge, INN.eaveY, 0.8, 1.0, 0.45, 0.3, 0.35, shingle, {
+  const roof = swaybackRoof(...INN_ROOF_ARGS, shingle, {
     ridgeCap: true,
     bargeboards: true,
   });
