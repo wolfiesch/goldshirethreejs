@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { MeshBVHHelper } from 'three-mesh-bvh';
 import {
   getTime,
@@ -124,6 +128,32 @@ if (timeParam !== null) {
 const world = buildWorld();
 scene.add(world.root);
 
+/**
+ * Bloom on the forge, the lit windows and the torches, as the references show.
+ *
+ * `OutputPass` is not optional. The composer's buffers are linear half-float,
+ * so without a pass that applies the renderer's colour space at the end the
+ * frame reaches the canvas unencoded and the whole scene washes out.
+ *
+ * The threshold is a luminance cut and it has to clear sunlit plaster, which
+ * lands near 1.5 at the current sun and hemisphere intensities. Rather than
+ * hunt for a threshold that separates a lit window from a white wall - there
+ * isn't one - everything meant to glow is driven well above that ceiling in
+ * `materials.ts`. Note that the cut is luminance, not brightness: the forge's
+ * near-pure red needs roughly three times the drive of a warm window to pass.
+ */
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+composer.addPass(
+  new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.35, 0.5, 1.55),
+);
+composer.addPass(new OutputPass());
+
+// The composer renders several passes per frame. Left on auto, `info` resets
+// at each of them and the HUD reports the output pass's single draw call
+// instead of the scene's, which makes it useless as a budget instrument.
+renderer.info.autoReset = false;
+
 const collider = buildCollider(world.root);
 scene.add(collider);
 if (showCollider) {
@@ -170,6 +200,7 @@ window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
 });
 
 window.addEventListener('keydown', (e) => {
@@ -204,6 +235,7 @@ let elapsed = 0;
  * and so screenshot verification can drive frames deterministically.
  */
 function step(dt: number): void {
+  renderer.info.reset();
   elapsed += dt;
   const animTime = camPreset ? FROZEN_ELAPSED : elapsed;
 
@@ -222,7 +254,7 @@ function step(dt: number): void {
 
   if (!camPreset && player.position.y < -20) player.teleport(SPAWN[0], SPAWN[1], SPAWN[2]);
 
-  renderer.render(scene, camera);
+  composer.render();
   hud.stats.update();
   hud.update(renderer, camPreset ? camera.position : player.position);
 }

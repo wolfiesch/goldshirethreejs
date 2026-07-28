@@ -142,7 +142,13 @@ export function glassMat(): THREE.MeshLambertMaterial {
       depthWrite: false,
     });
     glass.name = 'glass';
-    registerNightEmissive(glass, 0.05, 0.95);
+    /*
+     * Night drive is well above 1 so the bloom highpass can separate a lit
+     * window from a sunlit wall. Output is clamped at 1 either way under
+     * NoToneMapping, so the headroom costs nothing in the base image: it buys
+     * the glow and nothing else.
+     */
+    registerNightEmissive(glass, 0.05, 3.2);
   }
   return glass;
 }
@@ -192,7 +198,10 @@ export function waterMat(): THREE.MeshPhongMaterial {
 export function flameMat(): THREE.MeshBasicMaterial {
   if (!flame) {
     flame = new THREE.MeshBasicMaterial({
-      color: 0xffa63a,
+      // Above 1 in the linear working space, which a Basic material's colour
+      // is allowed to be. At 0xffa63a a torch sits under the bloom threshold
+      // and stays a flat orange decal at night.
+      color: new THREE.Color().setRGB(2.4, 1.5, 0.55),
       map: tex('flameCard'),
       transparent: true,
       opacity: 0.95,
@@ -249,12 +258,16 @@ export function runeMat(): THREE.MeshLambertMaterial {
       emissiveIntensity: 0,
     });
     rune.name = 'rune';
-    registerNightEmissive(rune, 0.1, 0.8);
+    registerNightEmissive(rune, 0.1, 2.8);
   }
   return rune;
 }
 
-/** Lantern lens: lit around the clock, so day and night intensities match. */
+/**
+ * Lantern lens: lit around the clock. The day value stays under the bloom
+ * threshold on purpose - a lantern that halos at noon reads as a bug, and noon
+ * is the frame where nothing but the sun disc should glow.
+ */
 export function lanternMat(): THREE.MeshLambertMaterial {
   if (!lantern) {
     lantern = new THREE.MeshLambertMaterial({
@@ -263,7 +276,7 @@ export function lanternMat(): THREE.MeshLambertMaterial {
       emissiveIntensity: 0,
     });
     lantern.name = 'lantern';
-    registerNightEmissive(lantern, 0.9, 0.9);
+    registerNightEmissive(lantern, 1.2, 3.0);
   }
   return lantern;
 }
@@ -280,7 +293,13 @@ export function forgeGlowMat(): THREE.MeshLambertMaterial {
       emissiveIntensity: 0,
     });
     forgeGlow.name = 'forgeGlow';
-    registerNightEmissive(forgeGlow, 0.55, 0.95);
+    /*
+     * Much higher than the warm-white emissives for the same apparent glow.
+     * The bloom highpass is a luminance cut, and this colour is nearly pure
+     * red: at Rec.709 weights it carries about a quarter of the luminance a
+     * white of the same magnitude would.
+     */
+    registerNightEmissive(forgeGlow, 4.6, 6.2);
   }
   return forgeGlow;
 }
