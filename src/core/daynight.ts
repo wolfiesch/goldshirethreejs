@@ -17,6 +17,12 @@ export interface NightLight {
   night: number;
 }
 
+/** A flame card that is only alight after dark. Basic materials have no emissive. */
+export interface NightFlame {
+  material: THREE.Material;
+  night: number;
+}
+
 export interface SkyTarget {
   setColors(zenith: THREE.Color, horizon: THREE.Color): void;
   setSun(direction: THREE.Vector3, elevation: number): void;
@@ -58,6 +64,7 @@ const KEYS: Keyframe[] = [
 
 const emissives: NightEmissive[] = [];
 const nightLights: NightLight[] = [];
+const nightFlames: NightFlame[] = [];
 
 let time = 13;
 let sceneRef: THREE.Scene | null = null;
@@ -101,6 +108,16 @@ export function registerNightEmissive(material: THREE.MeshLambertMaterial, day: 
 /** Outdoor torches: intensity scales with darkness so they cost nothing at noon. */
 export function registerNightLight(light: THREE.PointLight, night: number): void {
   nightLights.push({ light, night });
+}
+
+/**
+ * The flame card that goes with such a light. The cresset's point light was
+ * already scaled by darkness, but the card was not, so a torch at noon threw
+ * no light and still burned, and burned brightly enough to trip the bloom
+ * threshold. The forge keeps the always-lit material: it is worked all day.
+ */
+export function registerNightFlame(material: THREE.Material, night: number): void {
+  nightFlames.push({ material, night });
 }
 
 /** The point the shadow frustum tracks; main.ts feeds the player position here. */
@@ -210,4 +227,5 @@ export function updateDayNight(dt: number, autoAdvance: boolean): void {
     l.light.intensity = l.night * nightFactor;
     l.light.visible = l.light.intensity > 0.01;
   }
+  for (const f of nightFlames) f.material.opacity = f.night * nightFactor;
 }

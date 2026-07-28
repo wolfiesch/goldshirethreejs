@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { registerNightEmissive } from '../core/daynight';
+import { registerNightEmissive, registerNightFlame } from '../core/daynight';
 import { tex } from './textures';
 
 /**
@@ -115,6 +115,7 @@ let lantern: THREE.MeshLambertMaterial | null = null;
 let forgeGlow: THREE.MeshLambertMaterial | null = null;
 let water: THREE.MeshPhongMaterial | null = null;
 let flame: THREE.MeshBasicMaterial | null = null;
+let torchFlame: THREE.MeshBasicMaterial | null = null;
 let smoke: THREE.PointsMaterial | null = null;
 
 /** Shared wind uniform driven once per frame from the main loop. */
@@ -220,6 +221,22 @@ export function flameMat(): THREE.MeshBasicMaterial {
     flame.name = 'flame';
   }
   return flame;
+}
+
+/**
+ * The same flame, faded out by daylight. Outdoor cressets already dropped
+ * their point light at sunrise; without this the card kept burning, so a torch
+ * at noon threw no light, still showed a flame, and was bright enough to be
+ * the only thing besides the sun tripping the bloom threshold.
+ */
+export function torchFlameMat(): THREE.MeshBasicMaterial {
+  if (!torchFlame) {
+    torchFlame = flameMat().clone() as THREE.MeshBasicMaterial;
+    torchFlame.name = 'torchFlame';
+    torchFlame.opacity = 0;
+    registerNightFlame(torchFlame, 0.95);
+  }
+  return torchFlame;
 }
 
 export function smokeMat(): THREE.PointsMaterial {

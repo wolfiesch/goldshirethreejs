@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { registerNightLight } from '../core/daynight';
-import { mat } from '../gen/materials';
+import { mat, torchFlameMat } from '../gen/materials';
 import { barrel, box, crate, cylinder, fireEffect, sack, splitRailFence, spokedWheel, taperedPost } from '../gen/prims';
 import { jitter, makeRng, range } from '../gen/rng';
 import { FENCE_RUNS, TORCH_POSTS, scatterAround } from '../world/layout';
@@ -53,7 +53,7 @@ export function buildTorchPost(seed: number): THREE.Group {
 
   // Fuel bed plus the flame sitting in the basket.
   g.add(cylinder(0.15, 0.06, 6, mat('coal'), { pos: [0, postH + 0.12, 0], uvScale: 0.3, collide: false }));
-  const fire = fireEffect(0.4, 0.5, seed ^ 0x5f3a);
+  const fire = fireEffect(0.4, 0.5, seed ^ 0x5f3a, torchFlameMat());
   fire.position.set(0, postH + 0.14, 0);
   g.add(fire);
 

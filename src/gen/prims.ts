@@ -598,15 +598,20 @@ export function candleRingChandelier(radius: number, candles: number, chainLengt
   return g;
 }
 
-/** Crossed additive quads. Animated purely as a function of elapsed time. */
-export function fireEffect(w: number, h: number, seed: number): THREE.Group {
+/**
+ * Crossed additive quads. Animated purely as a function of elapsed time.
+ *
+ * `material` defaults to the always-lit flame; pass `torchFlameMat()` for a
+ * fire that should go out at sunrise.
+ */
+export function fireEffect(w: number, h: number, seed: number, material = flameMat()): THREE.Group {
   const g = new THREE.Group();
   const rng = makeRng(seed);
   const quads: THREE.Mesh[] = [];
   for (let i = 0; i < 3; i++) {
     const geo = new THREE.PlaneGeometry(w, h);
     geo.translate(0, h / 2, 0);
-    const m = new THREE.Mesh(geo, flameMat());
+    const m = new THREE.Mesh(geo, material);
     m.rotation.y = (i / 3) * Math.PI;
     m.castShadow = false;
     m.receiveShadow = false;
